@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { FeedView } from "@/components/FeedView";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Feed — Aria" };
 
 export default async function FeedPage() {
   const agent = await prisma.agent.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true, name: true } });

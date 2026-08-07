@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { buildMemoryGraph } from "@/lib/memoryGraph";
 import { MemoryGraphSvg } from "@/components/MemoryGraphSvg";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Memory Map — Aria" };
 
 const GRAPH_SIZE = 560;
 

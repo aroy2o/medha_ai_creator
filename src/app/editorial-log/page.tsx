@@ -1,7 +1,9 @@
+import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
 import { categorizeRejectionReason, type RejectionTone } from "@/lib/editorialLogDisplay";
 
 export const dynamic = "force-dynamic";
+export const metadata: Metadata = { title: "Editorial Log — Aria" };
 
 const TONE_STYLES: Record<RejectionTone, string> = {
   dedup: "border-neutral-300 text-neutral-700",
