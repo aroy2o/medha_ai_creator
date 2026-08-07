@@ -47,11 +47,18 @@ function extractEntities(text: string): string[] {
     .map((m) => m.trim())
     .filter((m) => {
       const words = m.split(/\s+/);
-      // Skip single common words that just happen to be capitalized
-      // (sentence-initial "The", "This", etc.) unless they contain a
-      // digit or hyphen (version/model-name signal, e.g. "GPT-4").
-      if (words.length === 1 && !/[0-9-]/.test(m) && m.length < 4) return false;
-      return true;
+      if (words.length > 1) return true; // multi-word phrases are always real signal
+      // Single-word "entities" are only trustworthy as entities (rather
+      // than an ordinary word that happens to start a sentence, e.g.
+      // "This", "According", "Following") when they carry an explicit
+      // proper-noun/technical-term signal: a digit or hyphen (version or
+      // model name, "GPT-4") or being a short all-caps acronym ("RAG").
+      // A length check alone isn't enough — "According" (9 chars) and
+      // "Intrigued" both cleared an earlier length>=4 threshold and
+      // polluted memory keyword sets in live testing. Ordinary single-
+      // word proper nouns without those signals ("Kubernetes", "GitHub")
+      // still get captured by the unigram pass below, just lowercased.
+      return /[0-9-]/.test(m) || (m === m.toUpperCase() && m.length >= 2);
     })
     .map(normalize);
 }

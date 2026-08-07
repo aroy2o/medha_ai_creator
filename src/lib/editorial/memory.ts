@@ -26,7 +26,7 @@ export function buildMemoryIndex(posts: MemoryPost[]): MemoryEntry[] {
     label: post.topicTags.length > 0 ? post.topicTags.join(", ") : post.text.slice(0, 60),
     keywords: new Set([
       ...post.topicTags.map((t) => t.toLowerCase().trim()),
-      ...extractKeywords(post.text).slice(0, 12),
+      ...extractKeywords(post.text).slice(0, 8),
     ]),
   }));
 }
@@ -58,14 +58,27 @@ export function scoreNovelty(candidateKeywords: Set<string>, memory: MemoryEntry
 
 /**
  * Jaccard overlap at or above this is treated as "the same topic already
- * covered" and hard-rejected rather than merely scored down. Tuned against
- * measured values (see memory.test.ts) rather than picked a priori: a
- * candidate that's a near-duplicate of a past post (same named entities,
- * same core claim, different phrasing) measured 0.28 overlap; a candidate
- * that shares only the broad domain with a past post (production
- * inference, but a different specific story) measured 0.069; a fully
- * unrelated candidate measured 0.0. 0.2 sits in the gap between the
- * near-duplicate cluster and the merely-same-domain cluster, with margin
- * on both sides.
+ * covered" and hard-rejected rather than merely scored down.
+ *
+ * First tuned against hand-written near-duplicate text (0.28) vs.
+ * same-domain-different-topic text (0.069) — see memory.test.ts — which
+ * put 0.2 comfortably in the gap. Live end-to-end testing then surfaced
+ * a real gap that synthetic text didn't: the actual runtime comparison
+ * isn't candidate-vs-candidate, it's candidate-vs-published-post, and a
+ * published post is Groq's paraphrase of the original candidate, not the
+ * candidate's own text. Paraphrasing systematically lowers measured
+ * overlap — feeding the literal same arXiv paper back in one cycle after
+ * publishing it about scored only 0.111, below the 0.2 gate, and the
+ * duplicate very nearly got republished. Two changes followed: (1)
+ * buildMemoryIndex's body-keyword slice above dropped 12 -> 8 to lean
+ * more on topicTags (curated, not prose-diluted) and less on generated
+ * body text; (2) the cycle route now also folds a few keywords extracted
+ * from the *original candidate's title* into topicTags at save time, so
+ * memory keeps the source's own vocabulary even when Aria's prose
+ * doesn't reuse it. With both applied the same repeat-topic case
+ * re-measured at 0.171 — better, but still short of 0.2, so the
+ * threshold itself also moved down to 0.15, which now correctly
+ * hard-rejects that case while staying clear of the 0.069
+ * same-domain-different-topic measurement (0.081 margin).
  */
-export const NOVELTY_REJECT_THRESHOLD = 0.2;
+export const NOVELTY_REJECT_THRESHOLD = 0.15;
