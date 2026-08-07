@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { ARIA_PERSONA } from "@/lib/persona";
 import { logger } from "@/lib/logger";
 
@@ -50,19 +51,40 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ agentId: existing.id }, { status: 200 });
     }
 
-    const agent = await prisma.agent.create({
-      data: {
-        name,
-        domain,
-        personaProfile: {
-          create: {
-            styleGuide: ARIA_PERSONA.styleGuide,
-            standingInterests: [...ARIA_PERSONA.standingInterests],
-            editorialStandards: ARIA_PERSONA.editorialStandards,
+    let agent;
+    try {
+      agent = await prisma.agent.create({
+        data: {
+          name,
+          domain,
+          personaProfile: {
+            create: {
+              styleGuide: ARIA_PERSONA.styleGuide,
+              standingInterests: [...ARIA_PERSONA.standingInterests],
+              editorialStandards: ARIA_PERSONA.editorialStandards,
+            },
           },
         },
-      },
-    });
+      });
+    } catch (err) {
+      // The findFirst check above and this create aren't atomic — two
+      // concurrent /init calls with the same name could both pass the
+      // check and race to create. Agent.name has a DB-level unique
+      // constraint specifically so the loser of that race gets a clean,
+      // handled P2002 here instead of silently creating a duplicate
+      // agent (which would break the idempotency guarantee this route
+      // exists to provide).
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const existingAfterRace = await prisma.agent.findFirst({ where: { name } });
+        if (existingAfterRace) {
+          logger.info("agent init lost a create race; returning the winner's agentId", {
+            agentId: existingAfterRace.id,
+          });
+          return NextResponse.json({ agentId: existingAfterRace.id }, { status: 200 });
+        }
+      }
+      throw err;
+    }
 
     logger.info("agent initialized", { agentId: agent.id });
     return NextResponse.json({ agentId: agent.id }, { status: 201 });

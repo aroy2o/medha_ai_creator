@@ -18,7 +18,7 @@ datasource db {
 
 model Agent {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @unique
   domain    String
   createdAt DateTime @default(now())
 

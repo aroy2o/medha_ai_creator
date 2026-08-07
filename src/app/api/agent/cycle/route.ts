@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
@@ -16,6 +17,16 @@ const DEFAULT_CYCLE_INTERVAL_HOURS = 4;
 function cycleIntervalHours(): number {
   const raw = Number(process.env.CYCLE_INTERVAL_HOURS);
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_CYCLE_INTERVAL_HOURS;
+}
+
+function secretsMatch(provided: string, expected: string): boolean {
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(expected);
+  // timingSafeEqual throws on length mismatch rather than returning
+  // false — compare lengths first (this alone leaks negligible
+  // information; the secret's length isn't the secret).
+  if (providedBuf.length !== expectedBuf.length) return false;
+  return timingSafeEqual(providedBuf, expectedBuf);
 }
 
 interface RejectionRow {
@@ -46,7 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Server misconfigured: CRON_SECRET is not set." }, { status: 500 });
   }
   const providedSecret = request.headers.get("x-cron-secret");
-  if (!providedSecret || providedSecret !== expectedSecret) {
+  if (!providedSecret || !secretsMatch(providedSecret, expectedSecret)) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 
@@ -193,9 +204,13 @@ export async function POST(request: NextRequest) {
       // The would-be winner cleared editorial judgment but generation
       // failed — log it too, so the editorial log doesn't silently lose
       // track of why nothing was published this cycle.
+      // The detailed error is logged server-side above; the publicly
+      // displayed reason (this app's editorial log is a public page)
+      // stays generic rather than echoing a raw exception message that
+      // could, depending on the failure, contain more than intended.
       rows.unshift({
         topic: judged.winner.candidate.title,
-        reason: `Cleared the editorial bar at ${judged.winner.weightedTotal}/10 but generation failed this cycle (${generationFailure}); nothing published.`,
+        reason: `Cleared the editorial bar at ${judged.winner.weightedTotal}/10 but text generation failed this cycle; nothing published.`,
         rejectedInFavorOfPostId: null,
       });
     }
