@@ -9,9 +9,19 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "@reduxjs/toolkit": "^2.12.0",
+    "dotenv": "^17.4.2",
+    "groq-sdk": "^1.5.0",
     "next": "16.3.0",
+    "pg": "^8.22.0",
+    "prisma": "^7.9.1",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-redux": "^9.3.0",
+    "rss-parser": "^3.13.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
