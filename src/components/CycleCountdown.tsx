@@ -21,13 +21,26 @@ function formatRemaining(ms: number): string {
   return parts.join(" ");
 }
 
+// useSyncExternalStore requires getSnapshot to return a referentially
+// stable value between store-change notifications — calling Date.now()
+// directly inside getSnapshot returns a *new* value on every call
+// (including the extra calls React makes just to check for changes),
+// which never compares equal and triggers "getSnapshot should be
+// cached" / an infinite render loop. The clock's current value is
+// cached here and only advances once per tick, on the same cadence as
+// the subscription notifying React that something actually changed.
+let cachedTime = Date.now();
+
 function subscribeToClock(callback: () => void) {
-  const id = setInterval(callback, 1000);
+  const id = setInterval(() => {
+    cachedTime = Date.now();
+    callback();
+  }, 1000);
   return () => clearInterval(id);
 }
 
 function getClientTime() {
-  return Date.now();
+  return cachedTime;
 }
 
 /** Deterministic across server render and hydration — the real clock
