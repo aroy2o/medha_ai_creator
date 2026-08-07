@@ -1,7 +1,11 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Aria — Autonomous AI Creator data model.
+//
+// Postgres (Supabase-compatible) is the datasource for both local dev and
+// production. See README.md "Decisions" for why this project didn't take
+// the SQLite-first path the build brief planned for: SQLite doesn't support
+// scalar list columns (Post.sources, Post.topicTags below need those), and
+// once a working Postgres connection string existed there was no reason to
+// build a workaround for a database this app doesn't ship on.
 
 generator client {
   provider = "prisma-client"
@@ -9,5 +13,54 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+}
+
+model Agent {
+  id        String   @id @default(cuid())
+  name      String
+  domain    String
+  createdAt DateTime @default(now())
+
+  posts          Post[]
+  rejectedTopics RejectedTopic[]
+  personaProfile PersonaProfile?
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  agentId   String
+  text      String
+  rationale String
+  sources   String[]
+  topicTags String[]
+  createdAt DateTime @default(now())
+
+  agent           Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  citedByRejected RejectedTopic[] @relation("RejectedInFavorOfPost")
+
+  @@index([agentId, createdAt])
+}
+
+model RejectedTopic {
+  id                      String   @id @default(cuid())
+  agentId                 String
+  topic                   String
+  reason                  String
+  consideredAt            DateTime @default(now())
+  rejectedInFavorOfPostId String?
+
+  agent                 Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  rejectedInFavorOfPost Post? @relation("RejectedInFavorOfPost", fields: [rejectedInFavorOfPostId], references: [id], onDelete: SetNull)
+
+  @@index([agentId, consideredAt])
+}
+
+model PersonaProfile {
+  agentId            String   @id
+  styleGuide         String
+  standingInterests  String[]
+  editorialStandards String
+
+  agent Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
 }
