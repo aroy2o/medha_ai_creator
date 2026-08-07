@@ -33,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-50 text-neutral-900">
+      <body className="flex min-h-full flex-col bg-neutral-50 font-sans text-neutral-900">
         <StoreProvider>
           <header className="border-b border-neutral-200 bg-white">
             <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
