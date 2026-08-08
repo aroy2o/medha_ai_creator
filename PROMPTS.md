@@ -698,3 +698,27 @@ write starts) so the popup isn't eaten by a popup blocker, then copies
 the post text and flashes "Copied — paste it in" on the button. 86
 tests (10 in `shareLinks.test.ts`, up from 9), lint, `tsc --noEmit`,
 and `next build` all clean.
+
+## Prompt 24 — 2026-08-09
+
+```
+lets make a app flow like letng user know what where and how its
+working as the user will be new
+```
+
+**Effect on the build:** asked via AskUserQuestion which onboarding
+shape to build — a permanent static explainer section, a dismissible
+first-visit banner, or both — since they differ substantially in scope
+(client state and localStorage vs. none) and the request itself didn't
+specify a mechanism. User chose the static section. Delivered: a "How
+this works" section on the homepage (`src/app/page.tsx`), server
+-rendered like the rest of the page, explaining the actual
+discover→judge→generate-and-critique→publish→remember cycle (matching
+README's "How the autonomous cycle works" almost verbatim, not a
+simplified/inaccurate gloss) plus a "where to look" map of the four
+other pages, each linked with a real description of what it shows. It
+replaced the old bottom-of-page nav (same four links) rather than
+duplicating it. Verified by curling the actual server-rendered HTML,
+not just checking the build succeeded — confirms it works for a
+first-time visitor with JS disabled too, not only after client
+hydration.

@@ -11,6 +11,41 @@ function cycleIntervalHours(): number {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_CYCLE_INTERVAL_HOURS;
 }
 
+const FLOW_LINKS = [
+  {
+    href: "/feed",
+    label: "Feed",
+    description: "What she's actually published, each post with its full rationale and score breakdown.",
+  },
+  {
+    href: "/editorial-log",
+    label: "Editorial Log",
+    description: "What she considered and rejected this cycle, and the real reason why.",
+  },
+  {
+    href: "/memory",
+    label: "Memory Map",
+    description: "How she checks new topics against what she's already covered.",
+  },
+  {
+    href: "/constitution",
+    label: "Constitution",
+    description: "How her own editorial standards have changed, with real dated entries.",
+  },
+];
+
+function FlowLink({ href, label, description }: { href: string; label: string; description: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col gap-0.5 px-3 py-2.5 hover:bg-neutral-50 sm:flex-row sm:items-baseline sm:gap-3"
+    >
+      <span className="shrink-0 text-sm font-medium text-neutral-900 sm:w-32">{label}</span>
+      <span className="text-sm text-neutral-600">{description}</span>
+    </Link>
+  );
+}
+
 export default async function PersonaPage() {
   const agent = await prisma.agent.findFirst({
     orderBy: { createdAt: "asc" },
@@ -67,6 +102,24 @@ export default async function PersonaPage() {
         </div>
       </div>
 
+      <section className="space-y-3 border-t border-neutral-200 pt-6">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">How this works</h2>
+        <p className="leading-relaxed text-neutral-800">
+          {agent.name} runs on her own, on a timer — nobody prompts her per post. Each cycle she
+          discovers candidate stories from seven sources, judges them against a six-part rubric
+          (relevance, substance, timeliness, novelty, credibility, cross-source corroboration) with
+          hard gates for off-domain and near-duplicate topics, writes a draft and has it
+          independently self-critiqued before publishing, and remembers what she&apos;s covered so
+          she doesn&apos;t repeat herself. Not every cycle publishes — some find nothing that clears
+          the bar, and that&apos;s treated as correct editorial judgment, not a failure.
+        </p>
+        <div className="divide-y divide-neutral-100 rounded border border-neutral-200">
+          {FLOW_LINKS.map((link) => (
+            <FlowLink key={link.href} {...link} />
+          ))}
+        </div>
+      </section>
+
       <section className="space-y-2 border-t border-neutral-200 pt-6">
         <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">Voice</h2>
         <p className="leading-relaxed text-neutral-800">{agent.personaProfile.styleGuide}</p>
@@ -118,30 +171,6 @@ export default async function PersonaPage() {
           </ul>
         </section>
       )}
-
-      <nav className="flex flex-wrap gap-4 border-t border-neutral-200 pt-6 text-sm">
-        <Link href="/feed" className="text-neutral-700 underline decoration-neutral-300 underline-offset-4 hover:text-neutral-900">
-          Read the feed
-        </Link>
-        <Link
-          href="/editorial-log"
-          className="text-neutral-700 underline decoration-neutral-300 underline-offset-4 hover:text-neutral-900"
-        >
-          See what was rejected and why
-        </Link>
-        <Link
-          href="/memory"
-          className="text-neutral-700 underline decoration-neutral-300 underline-offset-4 hover:text-neutral-900"
-        >
-          View the memory map
-        </Link>
-        <Link
-          href="/constitution"
-          className="text-neutral-700 underline decoration-neutral-300 underline-offset-4 hover:text-neutral-900"
-        >
-          See how my standards have changed
-        </Link>
-      </nav>
     </div>
   );
 }

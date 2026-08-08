@@ -335,3 +335,13 @@ build brief, made autonomously during an unsupervised build session.
   platforms' APIs autonomously, which this deliberately isn't (a human still clicks). Threads has no
   such public endpoint (Meta doesn't expose one), so it degrades to a "copy text + link" clipboard
   action instead of silently omitting Threads or faking a link that wouldn't actually prefill.
+- **The homepage's "How this works" section is static, server-rendered text, not a dismissible
+  tour.** The site has five pages now (persona, feed, editorial log, memory map, constitution) with
+  no prior explanation of what any of them are or how they relate — a real gap for a first-time
+  visitor, e.g. a hackathon judge landing cold. A dismissible first-visit banner (localStorage,
+  client component) was considered and explicitly turned down: it would only show once per browser,
+  so anyone returning, using a different browser, or arriving via a shared link mid-tour would never
+  see it, and it adds client-side state to a page that was previously a plain server component with
+  none. A permanent, always-visible section costs a few more lines of always-relevant content and
+  has no such gap. It replaced the old bottom-of-page nav rather than duplicating it — same four
+  links, now paired with a description instead of standing alone.
