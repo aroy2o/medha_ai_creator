@@ -1,11 +1,18 @@
-# PROMPTS.md
+# PROMPTS.md — AI Usage Log
 
-A verbatim, chronological log of every prompt given during the autonomous
-build session, so the build timeline is auditable. Where a message contained
-live secrets (API keys, database passwords), the secret values are redacted
-to `[REDACTED]` before being committed here — the build brief itself requires
-that no secrets ever be committed to git, so verbatim logging stops at that
-boundary. Everything else is reproduced as written.
+This is this project's AI Usage Log. It's a verbatim, chronological record of
+every prompt given during the build, plus what effect each one had on the
+codebase, so the development timeline is auditable end to end — not a
+summary written after the fact. Where a message contained live secrets (API
+keys, database passwords), the secret values are redacted to `[REDACTED]`
+before being committed here — this project's own standards require that no
+secrets ever be committed to git, so verbatim logging stops at that
+boundary. Everything else is reproduced as written, including typos.
+
+Every entry after Prompt 1 also names, in its own "Effect on the build"
+note, the specific commit(s) it produced — cross-reference against
+`git log` to verify the commit history actually matches what's claimed
+here.
 
 ---
 
@@ -433,3 +440,101 @@ pooler string yourself" anymore. (The publishable key and CLI-setup
 commands weren't needed for this fix: this app talks to Postgres
 directly via Prisma, not through Supabase's client SDK, so nothing used
 them.)
+
+## Prompt 11 — 2026-08-08 (pasted browser console output, same shape as Prompt 8, after the pooled connection string was in place)
+
+```
+installHook.js:1 [2026-08-08T20:14:53.554Z] ERROR route render failed
+{"message":"Minified React error #441; ...","digest":"2353862899"}
+i got this error in prod
+```
+
+**Effect on the build:** same symptom recurring after what should have
+been a fix. Rather than re-guess, re-verified the pooled connection
+string was still reachable and stable from this environment (3/3
+successful queries, ~1.2-2.1s each — ruled out a transient Supabase-side
+issue) and asked, via AskUserQuestion, whether Vercel's env var had
+actually been updated *and* redeployed.
+
+## Prompt 12 — 2026-08-08 (AskUserQuestion answer)
+
+```
+Yes, updated + redeployed
+```
+
+**Effect on the build:** ruled out "stale deployment still using the old
+value" as the cause, narrowing it to either a mistake in what was
+actually entered or a genuinely different failure — asked for the real
+Vercel Runtime Log text (or a screenshot of the env var settings) to
+stop guessing entirely.
+
+## Prompt 13 — 2026-08-08 (pasted Vercel Runtime Logs screenshot + text)
+
+```
+[Vercel deployment log table, then:]
+Error [PrismaClientKnownRequestError]:
+Invalid `prisma.agent.findFirst()` invocation:
+Authentication failed against the database server, the provided
+database credentials for `postgres` are not valid
+    code: 'P1000', ... digest: '2353862899'
+```
+
+**Effect on the build:** the real, non-redacted error — a genuinely
+different failure from Prompt 7/8 (that was unreachable; this reaches
+the server fine but fails auth). Diagnosed as most likely the pooled
+connection's username needing the project-ref qualifier
+(`postgres.<ref>`, not plain `postgres`) and/or the password's special
+characters (`!`, `&`) not being percent-encoded when hand-typed into
+Vercel. Rather than have the user retype it and risk the same mistake,
+provided the exact connection string with the password already correctly
+encoded, re-verified working seconds beforehand.
+
+## Prompt 14 — 2026-08-08 (full hackathon problem statement + judging rubric pasted, ending in a question)
+
+```
+What are the more and better features i can add in this app to make it
+more better ? as this was the ps and the criteria to make it better
+[full "Autonomous AI Creator" problem statement: minimum requirements,
+evaluation criteria, and the four-stage Hackathon Rules and Evaluation
+Process — eligibility verification, authenticity review, project
+judging, live steer challenge]
+```
+
+**Effect on the build:** an exploratory/strategic question, answered
+without implementing anything yet (per this session's own norms for
+open-ended "what should I do" questions) — checked actual current state
+first (live post count and timestamps, whether an AI Usage Log was
+discoverable) rather than answering from assumptions, and found the
+posts so far were all from manual testing, not a running cron — then
+proposed a prioritized list of eligibility fixes and rubric-mapped
+feature ideas and asked which to build.
+
+## Prompt 15 — 2026-08-09
+
+```
+go ahead and fix it and implement the new feature ideas
+```
+
+**Effect on the build:** authorization to build everything proposed in
+Prompt 14's answer. Delivered: GitHub-repo and AI-Usage-Log eligibility
+verification; memory-driven continuity callbacks (a new
+`RELATED_CALLBACK_MIN` band in `memory.ts`, empirically placed using
+measurements already taken for the existing reject threshold); a
+genuinely separate post-generation self-critique pass with one revision
+retry (verified live that it actually discriminates — scored a
+deliberately hype-y draft `0/10`, not a rubber stamp); per-post editorial
+stance tracking (`Post.stance`, new migration) surfaced as a feed badge
+and a "Recurring positions" summary on the persona page; a deterministic
+score-breakdown line folded into the rationale; three new discovery
+sources (GitHub Releases, Simon Willison's blog, OpenAI's blog) plus a
+switch from sequential-with-delay to concurrent discovery now that
+seven different hosts are involved instead of four. Found and fixed two
+real bugs during live testing along the way: an unrounded floating-point
+score (`novelty 9.444444444444445/10`) leaking into a published
+rationale once score breakdowns became user-facing, and a missing
+`<summary>`-field fallback that left one discovery source's summaries
+empty for short entries. Also caught, before it reached git, a real
+near-miss: the verified Supabase pooler connection string got written
+into `SETUP_TODO.md` with the *actual* password instead of a placeholder
+— found and fixed by re-reading the file before staging, confirmed
+nothing had been committed yet.

@@ -9,6 +9,9 @@ problem statement evaluated by a harness that polls a feed endpoint over a 48-ho
 Live persona: grounded, technically precise, focused on production AI reliability, deployment
 lessons, and failure modes — skeptical of hype, interested in what actually breaks.
 
+**AI Usage Log**: [`PROMPTS.md`](./PROMPTS.md) — every prompt given during development, verbatim,
+with what each one actually changed in the codebase.
+
 ## Architecture
 
 - **Next.js 16** (App Router, TypeScript strict mode) — frontend and API routes in one app
@@ -16,9 +19,11 @@ lessons, and failure modes — skeptical of hype, interested in what actually br
 - **Redux Toolkit** — feed data + loading/error state on the frontend (`src/store/`)
 - **Prisma 7** (driver-adapter client) against **Postgres** (Supabase) — both local dev and
   production use the same live database; see [Decisions](#decisions) for why
-- **Groq** (`llama-3.3-70b-versatile`, OpenAI-compatible client) for post generation
-- Four free, unauthenticated discovery sources: Hacker News (Firebase API), arXiv `cs.AI` RSS,
-  Reddit `r/MachineLearning` RSS, GitHub Trending (scraped — no free official API exists)
+- **Groq** (`llama-3.3-70b-versatile`, OpenAI-compatible client) for post generation, in two passes:
+  draft, then an independent self-critique before anything gets published
+- Seven free, unauthenticated discovery sources: Hacker News (Firebase API), arXiv `cs.AI` RSS,
+  Reddit `r/MachineLearning` RSS, GitHub Trending (scraped — no free official API exists), GitHub
+  Releases (Atom feeds for major AI infra repos), Simon Willison's blog, OpenAI's blog
 
 ```
 src/
@@ -66,27 +71,44 @@ npm run dev
 
 `POST /api/agent/cycle` (auth'd via `x-cron-secret`) runs one full pass:
 
-1. **Discover** — all four sources are queried sequentially (small delay between calls, out of
-   courtesy to free APIs). A source that errors or times out contributes zero candidates and gets
-   logged; it never takes the other three down with it.
+1. **Discover** — seven sources are queried concurrently (Hacker News, arXiv, Reddit
+   r/MachineLearning, GitHub Trending, GitHub Releases for major AI infra repos, Simon Willison's
+   blog, OpenAI's blog). A source that errors or times out contributes zero candidates and gets
+   logged; it never takes the others down with it, and running them concurrently rather than
+   sequentially keeps total discovery time roughly constant as sources are added (~3.5s for all
+   seven in testing, down from ~10s for the original four run sequentially).
 2. **Judge** (`lib/editorial/judge.ts`) — every candidate is scored against five weighted criteria
    (relevance to domain 0.30, technical substance vs. hype 0.25, timeliness 0.15, novelty vs.
    memory 0.20, source credibility 0.10) on a 0–10 scale. Two hard gates override the weighted
    score entirely: zero domain relevance, or ≥0.15 Jaccard keyword overlap with an already-published
    post (see [Decisions](#decisions) for how that threshold was actually tuned). A candidate needs
-   a weighted total ≥6.0 **and** to clear both gates to be publishable.
+   a weighted total ≥6.0 **and** to clear both gates to be publishable. A third band — related to a
+   past post without being a near-duplicate (≥0.05 overlap, below the 0.15 reject gate) — isn't a
+   rejection at all; it flags the winner as a genuine continuity opportunity (see step 4).
 3. **Rank and log** — the highest-scoring candidate that clears the bar is the winner; every other
    candidate considered that cycle (capped at 8, but "at least a few" is typical since dozens are
    usually discovered) is logged to `RejectedTopic` with the real reason: hard-rejected, below the
    bar, or outranked by the winner. If nothing clears the bar, nothing is published — that's treated
    as correct editorial behavior, not a failure.
-4. **Generate** (`lib/generation.ts`) — Groq writes the post body, a short "why this, why now"
-   framing, and topic tags, in Medha's voice. The *"why chosen over alternatives"* half of the
-   rationale is built from the judge's own structured output, not the model — the model doesn't
-   reliably know what else was discovered that cycle, and letting it invent plausible-sounding
-   alternatives would undermine the whole point of an auditable editorial log.
-5. **Publish** — the post is saved with its sources, rationale, and topic tags (enriched with a few
-   keywords from the *original candidate's title*, not just what Groq chose — see Decisions).
+4. **Generate, then critique** (`lib/generation.ts`) — Groq writes a draft (post body, a short "why
+   this, why now" framing, 3-6 topic tags, and a short editorial *stance* — see below), then a
+   **second, separate Groq call reviews that draft** as an independent editor scoring it against
+   Medha's own voice and standards, not as the writer grading its own work in the same breath. A
+   draft scoring below 7/10 gets one revision with the editor's specific feedback folded back in; if
+   the revision still doesn't clear the bar, generation fails for that cycle (same treatment as "no
+   candidate cleared the bar" below — nothing gets published, not a fallback to unreviewed text).
+   Verified live that the critique step actually discriminates: fed it a deliberately hype-y, generic
+   draft and it scored `0/10` with specific, actionable feedback, not a rubber stamp.
+   If the winner was flagged as related-but-distinct in step 2, generation is told about the earlier
+   post explicitly and asked to reference it naturally if it fits ("Following up on...") — memory
+   doesn't just prevent repeats, it lets new posts build on old ones.
+5. **Publish** — the post is saved with its sources, rationale, topic tags (enriched with a few
+   keywords from the *original candidate's title*, not just what Groq chose — see Decisions), and
+   stance. The rationale itself is assembled from parts with different provenance, stated as such:
+   the model's own "why this, why now" reasoning; a **deterministic** score breakdown
+   (`buildScoreBreakdown`) stating the actual five-criterion numbers, not a paraphrase of them; a
+   continuity note when applicable; and the alternatives-considered summary (also deterministic,
+   from the judge's structured output — see Decisions for why that part was never left to the model).
 
 A generation failure for an otherwise-winning candidate publishes nothing and logs the failure —
 same treatment as "nothing cleared the bar," not a silent fallback to unlabeled placeholder content.
@@ -95,6 +117,15 @@ same treatment as "nothing cleared the bar," not a silent fallback to unlabeled 
 `200 { skipped: true }` without touching any discovery source or Groq quota. This keeps "publishes
 over time, not all at once" true by construction rather than by trusting the external cron
 configuration alone.
+
+### Editorial stance tracking
+
+Every post gets a short (2-4 word) editorial stance from the same generation call — "cautiously
+optimistic," "skeptical of current safeguards," etc. — stored on the `Post` row and surfaced two
+places: a badge on each feed card, and a "Recurring positions" section on the persona page that
+groups the *actual* stances taken across the published feed, with counts. This exists because
+"distinct editorial opinions" is otherwise just a claim in a system prompt — this makes it a
+checkable property of the feed itself.
 
 ## API contract
 
@@ -111,7 +142,7 @@ shouldn't get a 404 for either.
 ## Testing
 
 ```bash
-npm test        # vitest — 60 unit tests over the pure editorial/discovery/generation logic
+npm test        # vitest — 65 unit tests over the pure editorial/discovery/generation logic
 npm run lint
 npx tsc --noEmit
 ```
@@ -193,3 +224,26 @@ build brief, made autonomously during an unsupervised build session.
   preserving its id and the two posts published under the old display name — see `PROMPTS.md` for
   the exact request). Commit messages before that point still say "Aria"; that's just history, not
   a naming inconsistency to fix.
+- **A production incident (real Postgres auth failure, `P1000`) traced back to a connection-string
+  mistake, not a code bug.** Full account, including how the actual working pooler host was found by
+  testing Supabase's known region list directly rather than guessing, is in `PROMPTS.md` and
+  `SETUP_TODO.md`.
+- **Discovery moved from sequential-with-delay to concurrent** when the source count grew from four
+  to seven. The original delay was rate-limit courtesy for hitting one host repeatedly — it doesn't
+  apply across seven different hosts, and running them concurrently keeps total discovery time
+  roughly flat (~3.5s measured for all seven) instead of growing linearly with each source added.
+  Individual sources that *do* hit one host repeatedly (GitHub Releases, fetching several repos)
+  still batch and delay their own requests internally.
+- **The self-critique step is a genuinely separate model call, not an inline "and also rate
+  yourself" instruction tacked onto the same generation prompt.** Framing it as an independent
+  editor reviewing someone else's draft — rather than the writer immediately self-grading — was a
+  deliberate choice to avoid the obvious failure mode of a model rubber-stamping its own output.
+  Verified this actually discriminates before trusting it: fed the critique step a deliberately
+  hype-y, generic draft in isolation and it scored `0/10` with specific feedback, not an automatic
+  pass.
+- **"Related but not a duplicate" is a real third outcome, not just two-valued reject/accept.** The
+  novelty score already existed on a continuous 0-1 scale for the hard-reject gate; adding a second,
+  lower threshold (`RELATED_CALLBACK_MIN`) to carve out a "genuinely related" band cost nothing
+  structurally and turned an existing signal into a second feature (continuity) instead of just a
+  dedup gate. The empirical placement of that band reuses measurements already taken for the reject
+  threshold — see `memory.ts`.
