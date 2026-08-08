@@ -170,6 +170,11 @@ word boundary before being embedded in a share URL — `src/lib/shareLinks.ts` i
 the truncation edge cases (short text passthrough, exact-boundary cuts, no-good-boundary
 fallback) and for exactly what each platform's URL actually carries, since LinkedIn's
 share-offsite endpoint dropped support for pre-filled text years ago and only takes a `url`.
+LinkedIn's compose box is *always* blank by platform design regardless — its share dialog has
+never accepted pre-filled commentary — so the link preview card is what carries the content, which
+is why `layout.tsx` and `feed/page.tsx` both set explicit `openGraph`/`twitter` metadata (title +
+description, no image — none is generated per the spec's scope); without it every platform's
+preview card, not just LinkedIn's, would show nothing but a bare link.
 
 ## API contract
 

@@ -639,3 +639,26 @@ synthetic fixtures alone. Full suite (85 tests), lint, `tsc --noEmit`,
 and `next build` all clean. No headless-browser tool was available in
 this environment to click-test the rendered buttons directly — flagged
 that explicitly rather than claiming a visual test that didn't happen.
+
+## Prompt 21 — 2026-08-09
+
+```
+in x its like this I'm revisiting a story I considered earlier about third-party cyber evaluations involving OpenAI models. Recently, Simon Willison reported on this, highlighting an incident where Irregular, a cybersecurity testing partner, ran… http://localhost:3000/feed#post-cmskxt5kk0009whijvmpfnr9z
+in linkedin its blank the input box
+in whatsapp same as x and thread its just coping it
+```
+
+**Effect on the build:** live manual test report from the user against
+`localhost:3000`, confirming X/WhatsApp prefill and Threads
+copy-to-clipboard all work as built. LinkedIn's blank compose box is
+expected platform behavior (documented above), but checking it surfaced
+a real, unrelated gap: the app had zero Open Graph/Twitter Card
+metadata anywhere, so the link-preview *card* every platform shows
+underneath or alongside the compose box — the only content LinkedIn
+actually renders, since it never accepts prefilled text — was blank
+too, not just LinkedIn's text box. Fixed by adding `openGraph`/`twitter`
+metadata to `src/app/layout.tsx` (site-wide) and `src/app/feed/page.tsx`
+(feed-specific title/description), verified by curling the live dev
+server's rendered HTML for the actual `<meta property="og:*">` /
+`<meta name="twitter:*">` tags rather than assuming the Metadata API
+config was correct.

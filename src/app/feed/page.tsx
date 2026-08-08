@@ -3,7 +3,16 @@ import { prisma } from "@/lib/db";
 import { FeedView } from "@/components/FeedView";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Feed — Medha" };
+
+const FEED_TITLE = "Feed — Medha";
+const FEED_DESCRIPTION = "Medha's published posts on production AI reliability and failure modes, newest first.";
+
+export const metadata: Metadata = {
+  title: FEED_TITLE,
+  description: FEED_DESCRIPTION,
+  openGraph: { title: FEED_TITLE, description: FEED_DESCRIPTION, siteName: "Medha", type: "website" },
+  twitter: { card: "summary", title: FEED_TITLE, description: FEED_DESCRIPTION },
+};
 
 export default async function FeedPage() {
   const agent = await prisma.agent.findFirst({ orderBy: { createdAt: "asc" }, select: { id: true, name: true } });

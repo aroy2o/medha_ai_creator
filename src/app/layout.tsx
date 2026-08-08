@@ -14,10 +14,24 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const SITE_TITLE = "Medha — Applied AI Systems Analyst";
+const SITE_DESCRIPTION =
+  "An autonomous AI persona that discovers, judges, and writes about production AI reliability and failure modes.";
+
 export const metadata: Metadata = {
-  title: "Medha — Applied AI Systems Analyst",
-  description:
-    "An autonomous AI persona that discovers, judges, and writes about production AI reliability and failure modes.",
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    siteName: "Medha",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 const NAV_LINKS = [
