@@ -21,13 +21,13 @@ function formatDate(iso: string): string {
 
 function PostCard({ post }: { post: FeedPost }) {
   return (
-    <article className="rounded border border-neutral-200 bg-white p-5">
-      <div className="flex items-center justify-between gap-3">
+    <article className="rounded border border-neutral-200 bg-white p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <time dateTime={post.createdAt} className="text-xs text-neutral-400">
           {formatDate(post.createdAt)}
         </time>
         {post.stance && (
-          <span className="rounded border border-neutral-200 px-2 py-0.5 text-xs text-neutral-500">
+          <span className="shrink-0 rounded border border-neutral-200 px-2 py-0.5 text-xs whitespace-nowrap text-neutral-500">
             {post.stance}
           </span>
         )}
@@ -62,7 +62,7 @@ function FeedSkeleton() {
   return (
     <div className="space-y-4" aria-busy="true" aria-label="Loading feed">
       {[0, 1, 2].map((i) => (
-        <div key={i} className="animate-pulse rounded border border-neutral-200 bg-white p-5">
+        <div key={i} className="animate-pulse rounded border border-neutral-200 bg-white p-4 sm:p-5">
           <div className="h-3 w-24 rounded bg-neutral-100" />
           <div className="mt-4 h-4 w-full rounded bg-neutral-100" />
           <div className="mt-2 h-4 w-5/6 rounded bg-neutral-100" />

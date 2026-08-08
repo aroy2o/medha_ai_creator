@@ -42,7 +42,7 @@ export default async function MemoryPage() {
         </p>
       ) : (
         <>
-          <div className="mt-8 rounded border border-neutral-200 bg-white p-6">
+          <div className="mt-8 rounded border border-neutral-200 bg-white p-3 sm:p-6">
             <MemoryGraphSvg
               graph={buildMemoryGraph(posts, GRAPH_SIZE, GRAPH_SIZE)}
               width={GRAPH_SIZE}
