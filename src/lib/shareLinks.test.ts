@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildShareLinks, buildThreadsClipboardText, truncateForShare } from "./shareLinks";
+import { buildLinkedInClipboardText, buildShareLinks, buildThreadsClipboardText, truncateForShare } from "./shareLinks";
 
 describe("truncateForShare", () => {
   it("leaves short text untouched", () => {
@@ -59,5 +59,13 @@ describe("buildThreadsClipboardText", () => {
     expect(buildThreadsClipboardText("Hello world", "https://example.com")).toBe(
       "Hello world\n\nhttps://example.com",
     );
+  });
+});
+
+describe("buildLinkedInClipboardText", () => {
+  it("returns the text unchanged, deliberately omitting the url", () => {
+    // LinkedIn attaches the url itself as a preview card from OG tags — repeating it in the
+    // pasted text would show the link twice.
+    expect(buildLinkedInClipboardText("Hello world")).toBe("Hello world");
   });
 });

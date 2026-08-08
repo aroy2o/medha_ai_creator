@@ -662,3 +662,39 @@ metadata to `src/app/layout.tsx` (site-wide) and `src/app/feed/page.tsx`
 server's rendered HTML for the actual `<meta property="og:*">` /
 `<meta name="twitter:*">` tags rather than assuming the Metadata API
 config was correct.
+
+## Prompt 22 — 2026-08-09
+
+```
+[two screenshots: LinkedIn share dialog now showing a real "Feed —
+Medha" preview card, and X's compose box correctly prefilled]
+see when i clcik the linedin and x this came like this
+```
+
+**Effect on the build:** confirmation, not a bug report — both
+screenshots showed the previous fix (OG metadata) and the original
+share-intent build working exactly as intended in production. Replied
+confirming the LinkedIn compose box being blank is still expected
+platform behavior, unrelated to the card now rendering correctly.
+
+## Prompt 23 — 2026-08-09
+
+```
+but in linkedin i can see the link but not anything text wich looks
+odd like in linkedin we should also give some reference text and then
+the link
+```
+
+**Effect on the build:** asked via AskUserQuestion whether to leave
+LinkedIn's blank compose box as-is (a genuine, undocumented-workaround
+-free platform limit) or apply the same clipboard fallback already
+built for Threads; user chose the fallback. Delivered:
+`buildLinkedInClipboardText()` in `shareLinks.ts` (deliberately omits
+the url, since LinkedIn's own preview card already carries it —
+Threads' equivalent function includes the url because Threads has no
+card at all) and a `shareLinkedIn()` handler in `ShareButtons.tsx` that
+opens LinkedIn's share dialog synchronously (before the async clipboard
+write starts) so the popup isn't eaten by a popup blocker, then copies
+the post text and flashes "Copied — paste it in" on the button. 86
+tests (10 in `shareLinks.test.ts`, up from 9), lint, `tsc --noEmit`,
+and `next build` all clean.

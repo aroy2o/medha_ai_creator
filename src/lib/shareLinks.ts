@@ -38,3 +38,13 @@ export function buildShareLinks(text: string, url: string): ShareLinks {
 export function buildThreadsClipboardText(text: string, url: string): string {
   return `${text}\n\n${url}`;
 }
+
+/**
+ * LinkedIn's share dialog can't be prefilled (see buildShareLinks), so the practical fix is the
+ * same clipboard fallback as Threads — except the url is deliberately left out here: LinkedIn
+ * already attaches it as a preview card pulled from the page's own OG tags, so appending it again
+ * would duplicate the link in the pasted text.
+ */
+export function buildLinkedInClipboardText(text: string): string {
+  return text;
+}

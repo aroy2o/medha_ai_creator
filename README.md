@@ -176,6 +176,14 @@ is why `layout.tsx` and `feed/page.tsx` both set explicit `openGraph`/`twitter` 
 description, no image — none is generated per the spec's scope); without it every platform's
 preview card, not just LinkedIn's, would show nothing but a bare link.
 
+Since the LinkedIn box can't be prefilled at all, clicking LinkedIn does what Threads does —
+copies the post text to the clipboard — *and* opens the share dialog at the same time, so the
+user only has to paste once instead of typing their own commentary from scratch. The window opens
+before the async clipboard write starts, deliberately, so it still reads as a direct response to
+the click and doesn't get eaten by a popup blocker. The clipboard text for LinkedIn deliberately
+excludes the url (LinkedIn's own preview card already carries it; repeating it would show the link
+twice), unlike Threads, which has no card at all and needs the url in the copied text.
+
 ## API contract
 
 ```
@@ -191,7 +199,7 @@ shouldn't get a 404 for either.
 ## Testing
 
 ```bash
-npm test        # vitest — 85 unit tests over the pure editorial/discovery/generation/share logic
+npm test        # vitest — 86 unit tests over the pure editorial/discovery/generation/share logic
 npm run lint
 npx tsc --noEmit
 ```
