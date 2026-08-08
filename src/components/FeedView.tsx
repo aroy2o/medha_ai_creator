@@ -22,9 +22,16 @@ function formatDate(iso: string): string {
 function PostCard({ post }: { post: FeedPost }) {
   return (
     <article className="rounded border border-neutral-200 bg-white p-5">
-      <time dateTime={post.createdAt} className="text-xs text-neutral-400">
-        {formatDate(post.createdAt)}
-      </time>
+      <div className="flex items-center justify-between gap-3">
+        <time dateTime={post.createdAt} className="text-xs text-neutral-400">
+          {formatDate(post.createdAt)}
+        </time>
+        {post.stance && (
+          <span className="rounded border border-neutral-200 px-2 py-0.5 text-xs text-neutral-500">
+            {post.stance}
+          </span>
+        )}
+      </div>
       <p className="mt-3 whitespace-pre-wrap leading-relaxed text-neutral-900">{post.text}</p>
 
       <div className="mt-4 border-t border-neutral-100 pt-4">

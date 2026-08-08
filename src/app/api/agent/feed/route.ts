@@ -31,16 +31,23 @@ export async function GET(request: NextRequest) {
         text: true,
         rationale: true,
         sources: true,
+        topicTags: true,
+        stance: true,
       },
     });
 
     return NextResponse.json({
       posts: posts.map((post) => ({
+        // Required contract fields, in spec order.
         id: post.id,
         createdAt: post.createdAt.toISOString(),
         text: post.text,
         rationale: post.rationale,
         sources: post.sources,
+        // Additive bonus fields — not part of the required contract, but
+        // harmless for any consumer that only reads the fields above.
+        topicTags: post.topicTags,
+        stance: post.stance,
       })),
     });
   } catch (err) {

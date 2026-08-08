@@ -30,14 +30,29 @@ export default async function PersonaPage() {
     );
   }
 
-  const [lastPost, lastRejection] = await Promise.all([
+  const [lastPost, lastRejection, stancePosts] = await Promise.all([
     prisma.post.findFirst({ where: { agentId: agent.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } }),
     prisma.rejectedTopic.findFirst({ where: { agentId: agent.id }, orderBy: { consideredAt: "desc" }, select: { consideredAt: true } }),
+    prisma.post.findMany({ where: { agentId: agent.id }, select: { stance: true, topicTags: true } }),
   ]);
 
   const lastCycleAt = [lastPost?.createdAt, lastRejection?.consideredAt]
     .filter((d): d is Date => d != null)
     .sort((a, b) => b.getTime() - a.getTime())[0];
+
+  // Groups posts by stance so "distinct editorial opinions" is something
+  // a reader can actually check against the feed, not just a claim in
+  // the voice paragraph above.
+  const stanceCounts = new Map<string, { count: number; example: string | null }>();
+  for (const post of stancePosts) {
+    const existing = stanceCounts.get(post.stance);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      stanceCounts.set(post.stance, { count: 1, example: post.topicTags[0] ?? null });
+    }
+  }
+  const stances = [...stanceCounts.entries()].sort((a, b) => b[1].count - a[1].count);
 
   return (
     <div className="max-w-2xl space-y-10">
@@ -79,6 +94,30 @@ export default async function PersonaPage() {
           ))}
         </ul>
       </section>
+
+      {stances.length > 0 && (
+        <section className="space-y-3 border-t border-neutral-200 pt-6">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-neutral-500">
+            Recurring positions
+          </h2>
+          <p className="text-sm text-neutral-500">
+            The editorial stance {agent.name} has actually taken across published posts — not asserted,
+            derived from the feed itself.
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {stances.map(([stance, info]) => (
+              <li
+                key={stance}
+                className="rounded border border-neutral-200 px-2.5 py-1 text-sm text-neutral-700"
+                title={info.example ? `e.g. ${info.example}` : undefined}
+              >
+                {stance}
+                {info.count > 1 && <span className="ml-1 text-neutral-400">×{info.count}</span>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <nav className="flex flex-wrap gap-4 border-t border-neutral-200 pt-6 text-sm">
         <Link href="/feed" className="text-neutral-700 underline decoration-neutral-300 underline-offset-4 hover:text-neutral-900">

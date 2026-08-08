@@ -6,6 +6,10 @@ export interface FeedPost {
   text: string;
   rationale: string;
   sources: string[];
+  /** Bonus fields beyond the required contract — optional so this type
+   * still matches a strictly-spec-compliant feed response. */
+  topicTags?: string[];
+  stance?: string;
 }
 
 interface FeedState {

@@ -4,7 +4,14 @@ export interface DiscoveredCandidate {
   /** A few sentences of context — description, abstract, or excerpt. */
   summary: string;
   url: string;
-  source: "Hacker News" | "arXiv" | "GitHub Trending" | "Reddit r/MachineLearning";
+  source:
+    | "Hacker News"
+    | "arXiv"
+    | "GitHub Trending"
+    | "Reddit r/MachineLearning"
+    | "GitHub Releases"
+    | "Simon Willison"
+    | "OpenAI Blog";
   /** ISO 8601 UTC, when known. */
   publishedAt: string | null;
 }
