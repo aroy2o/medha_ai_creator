@@ -68,18 +68,34 @@ export const APPROVAL_THRESHOLD = 6.0;
 const SOURCE_CREDIBILITY: Record<DiscoveredCandidate["source"], number> = {
   // Peer-review-track preprints with full abstracts and named authors.
   arXiv: 9,
+  // Official release notes, written by the maintainers of software that's
+  // actually running in production somewhere — as factual as it gets,
+  // just not peer-reviewed.
+  "GitHub Releases": 8,
+  // An independent expert with a strong, specific track record for
+  // technical accuracy on LLM tooling — individual, so a notch below an
+  // institutional primary source, but not community-crowd-sourced either.
+  "Simon Willison": 8,
   // Real, shipped, running code — but stars measure popularity, not
   // correctness or production-readiness.
   "GitHub Trending": 7,
   // Community-vetted via points/comments, but variable quality and no
   // editorial process.
   "Hacker News": 7,
-  // Open discussion forum; the lowest editorial bar of the four sources.
+  // A primary source for OpenAI's own announcements, but a company
+  // blogging about its own product carries an inherent promotional
+  // angle — factually reliable, editorially self-interested.
+  "OpenAI Blog": 7,
+  // Open discussion forum; the lowest editorial bar of all sources.
   "Reddit r/MachineLearning": 6,
 };
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function escapeRegex(value: string): string {
@@ -174,12 +190,15 @@ export function scoreCandidate({
   const noveltyScore = clamp(10 * (1 - novelty.score * 2), 0, 10);
   const credibility = scoreCredibility(candidate.source);
 
+  // Rounded for display — these end up in the public rationale/UI via
+  // buildScoreBreakdown, not just used internally, so an unrounded value
+  // like 9.444444444444445 would leak straight into published text.
   const scores: EditorialCriteriaScores = {
-    relevance,
-    substance,
-    timeliness,
-    novelty: noveltyScore,
-    credibility,
+    relevance: round2(relevance),
+    substance: round2(substance),
+    timeliness: round2(timeliness),
+    novelty: round2(noveltyScore),
+    credibility: round2(credibility),
   };
 
   const weightedTotal =

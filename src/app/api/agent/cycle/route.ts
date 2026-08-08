@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { discoverAll } from "@/lib/discovery";
 import { judgeCandidates, type JudgedCandidate } from "@/lib/editorial/judge";
-import { generatePost } from "@/lib/generation";
+import { RELATED_CALLBACK_MIN } from "@/lib/editorial/memory";
+import { generatePost, type RelatedPastPost } from "@/lib/generation";
 import { extractKeywords } from "@/lib/editorial/keywords";
 
 export const dynamic = "force-dynamic";
@@ -160,6 +161,16 @@ export async function POST(request: NextRequest) {
     let generationFailure: string | null = null;
 
     try {
+      // The winner's novelty score already tells us whether it's related
+      // to a past post without being a duplicate (below the hard-reject
+      // gate, at/above RELATED_CALLBACK_MIN) — see memory.ts. When it is,
+      // pass that context through so generation can reference prior
+      // coverage explicitly instead of writing as if it never happened.
+      const relatedPastPost: RelatedPastPost | null =
+        judged.winner.noveltyScore >= RELATED_CALLBACK_MIN && judged.winner.mostSimilarPostLabel
+          ? { label: judged.winner.mostSimilarPostLabel, sharedTerms: judged.winner.sharedTerms }
+          : null;
+
       const generated = await generatePost({
         persona: {
           name: agent.name,
@@ -168,7 +179,9 @@ export async function POST(request: NextRequest) {
         },
         winningCandidate: judged.winner.candidate,
         weightedTotal: judged.winner.weightedTotal,
+        scores: judged.winner.scores,
         alternatives: judged.considered,
+        relatedPastPost,
       });
 
       // Fold a few keywords from the *original candidate's* title into
@@ -187,6 +200,7 @@ export async function POST(request: NextRequest) {
           rationale: generated.rationale,
           sources: [judged.winner.candidate.url],
           topicTags: enrichedTags,
+          stance: generated.stance,
         },
       });
       publishedPostId = post.id;

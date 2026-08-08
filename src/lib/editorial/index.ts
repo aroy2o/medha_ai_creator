@@ -1,6 +1,6 @@
 export { extractKeywords, keywordSet } from "./keywords";
 export { jaccardSimilarity, sharedTerms } from "./similarity";
-export { buildMemoryIndex, scoreNovelty, NOVELTY_REJECT_THRESHOLD, type MemoryPost, type MemoryEntry, type NoveltyResult } from "./memory";
+export { buildMemoryIndex, scoreNovelty, NOVELTY_REJECT_THRESHOLD, RELATED_CALLBACK_MIN, type MemoryPost, type MemoryEntry, type NoveltyResult } from "./memory";
 export {
   scoreCandidate,
   scoreRelevance,

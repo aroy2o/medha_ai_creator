@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { extractKeywords } from "./keywords";
-import { buildMemoryIndex, scoreNovelty, NOVELTY_REJECT_THRESHOLD, type MemoryPost } from "./memory";
+import { buildMemoryIndex, scoreNovelty, NOVELTY_REJECT_THRESHOLD, RELATED_CALLBACK_MIN, type MemoryPost } from "./memory";
 
 const pastPosts: MemoryPost[] = [
   {
@@ -61,5 +61,28 @@ describe("scoreNovelty", () => {
     const result = scoreNovelty(new Set(["gpu", "latency"]), []);
     expect(result.score).toBe(0);
     expect(result.mostSimilar).toBeNull();
+  });
+
+  it("places the same-domain-different-topic case inside the callback band, not below it", () => {
+    // This is exactly the case a memory-driven callback exists for:
+    // related enough to reference, not similar enough to reject.
+    const candidateText =
+      "A new paper proposes speculative decoding with a smaller draft model to cut " +
+      "LLM response latency without hurting output accuracy on reasoning benchmarks.";
+    const memory = buildMemoryIndex(pastPosts);
+    const result = scoreNovelty(new Set(extractKeywords(candidateText)), memory);
+
+    expect(result.score).toBeGreaterThanOrEqual(RELATED_CALLBACK_MIN);
+    expect(result.score).toBeLessThan(NOVELTY_REJECT_THRESHOLD);
+    expect(result.mostSimilar?.postId).toBe("post-1");
+  });
+
+  it("places a fully unrelated topic below the callback band", () => {
+    const candidateText =
+      "Reddit discussion thread comparing vector database options for retrieval-augmented generation pipelines.";
+    const memory = buildMemoryIndex(pastPosts);
+    const result = scoreNovelty(new Set(extractKeywords(candidateText)), memory);
+
+    expect(result.score).toBeLessThan(RELATED_CALLBACK_MIN);
   });
 });

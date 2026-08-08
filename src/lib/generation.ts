@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger";
 import { extractKeywords } from "@/lib/editorial/keywords";
 import type { DiscoveredCandidate } from "@/lib/discovery/types";
 import type { JudgedCandidate } from "@/lib/editorial/judge";
+import type { EditorialCriteriaScores } from "@/lib/editorial/scoring";
 
 export interface PersonaVoice {
   name: string;
@@ -10,23 +11,37 @@ export interface PersonaVoice {
   editorialStandards: string;
 }
 
+export interface RelatedPastPost {
+  label: string;
+  sharedTerms: string[];
+}
+
 export interface GenerationInput {
   persona: PersonaVoice;
   winningCandidate: DiscoveredCandidate;
   weightedTotal: number;
+  scores: EditorialCriteriaScores;
   /** Every other candidate considered this cycle, for an accurate rationale. */
   alternatives: JudgedCandidate[];
+  /** Set when this topic is related-but-distinct from a past post — see
+   * lib/editorial/memory.ts's RELATED_CALLBACK_MIN. */
+  relatedPastPost: RelatedPastPost | null;
 }
 
 export interface GeneratedPost {
   text: string;
   rationale: string;
   topicTags: string[];
+  /** A short (2-4 word) editorial stance, e.g. "cautiously optimistic",
+   * "skeptical" — makes "distinct editorial opinions" checkable rather
+   * than merely asserted in a system prompt. */
+  stance: string;
 }
 
 const MODEL = "llama-3.3-70b-versatile";
 const MAX_TAGS = 6;
 const REQUEST_TIMEOUT_MS = 20_000;
+const CRITIQUE_APPROVAL_THRESHOLD = 7;
 
 export function isMockMode(): boolean {
   return process.env.MOCK_MODE === "true" || !process.env.GROQ_API_KEY;
@@ -38,6 +53,12 @@ export function sanitizeTags(raw: unknown, fallbackText: string): string[] {
   const deduped = [...new Set(cleaned)].slice(0, MAX_TAGS);
   if (deduped.length > 0) return deduped;
   return extractKeywords(fallbackText).slice(0, 5);
+}
+
+function sanitizeStance(raw: unknown): string {
+  if (typeof raw !== "string") return "observational";
+  const cleaned = raw.trim().slice(0, 40);
+  return cleaned || "observational";
 }
 
 /**
@@ -73,6 +94,24 @@ export function buildAlternativesSummary(alternatives: JudgedCandidate[]): strin
   return parts.join(" ");
 }
 
+/**
+ * Deterministic, not LLM-generated — same reasoning as
+ * buildAlternativesSummary: the actual scoring rubric's numbers are real
+ * structured data, so state them directly rather than asking the model
+ * to paraphrase (and possibly misreport) its own score.
+ */
+export function buildScoreBreakdown(scores: EditorialCriteriaScores, weightedTotal: number): string {
+  return (
+    `Scored ${weightedTotal}/10 this cycle — relevance ${scores.relevance}/10, substance ${scores.substance}/10, ` +
+    `timeliness ${scores.timeliness}/10, novelty ${scores.novelty}/10, source credibility ${scores.credibility}/10.`
+  );
+}
+
+function buildContinuityNote(related: RelatedPastPost | null): string {
+  if (!related) return "";
+  return `Related to earlier coverage of ${related.label} (shared: ${related.sharedTerms.slice(0, 4).join(", ") || "overlapping themes"}) — treated as a continuation, not a repeat.`;
+}
+
 /** Discovery summaries are hard-truncated and can end mid-sentence; trim
  * back to the last full sentence (or add a period) so mock post text
  * doesn't visibly run two unrelated sentences together. */
@@ -84,64 +123,85 @@ function closeSentence(summary: string): string {
   return `${trimmed}.`;
 }
 
-function buildMockPost(candidate: DiscoveredCandidate): GeneratedPost {
+function buildMockPost(input: GenerationInput): GeneratedPost {
+  const candidate = input.winningCandidate;
   const tags = extractKeywords(`${candidate.title} ${candidate.summary}`).slice(0, 5);
+  const continuity = input.relatedPastPost
+    ? ` This follows up on earlier coverage of ${input.relatedPastPost.label}.`
+    : "";
   const text = [
     `${candidate.title} reads well as a headline and is worth a closer look at what actually holds up.`,
-    closeSentence(candidate.summary),
+    closeSentence(candidate.summary) + continuity,
     "The real test is what happens outside the benchmark conditions — production traffic, partial failures, and the long tail of inputs nobody profiled for. Worth revisiting once real deployment numbers exist.",
   ].join(" ");
   return {
     text,
-    rationale:
+    rationale: [
       "[MOCK_MODE] No GROQ_API_KEY is configured, so this text and rationale are template-generated, not model-generated. Set GROQ_API_KEY and MOCK_MODE=false to see real generation — see README.md.",
+      buildScoreBreakdown(input.scores, input.weightedTotal),
+      buildContinuityNote(input.relatedPastPost),
+      buildAlternativesSummary(input.alternatives),
+    ]
+      .filter(Boolean)
+      .join(" "),
     topicTags: tags,
+    stance: "observational",
   };
 }
 
-/**
- * Real-mode failures (Groq unreachable, malformed response, timeout) are
- * thrown rather than silently falling back to a mock post. A runtime
- * failure should behave like "nothing passed this cycle" — which the
- * cycle route already treats as valid, expected editorial behavior — not
- * quietly publish template content that looks like a real generated post
- * but isn't labeled as one.
- */
-export async function generatePost(input: GenerationInput): Promise<GeneratedPost> {
-  if (isMockMode()) {
-    logger.info("generation running in MOCK_MODE", {
-      reason: process.env.GROQ_API_KEY ? "MOCK_MODE=true" : "no GROQ_API_KEY set",
-    });
-    return buildMockPost(input.winningCandidate);
-  }
+interface Draft {
+  text: string;
+  whySelected: string;
+  topicTags: string[];
+  stance: string;
+}
 
-  const client = new Groq({ apiKey: process.env.GROQ_API_KEY, timeout: REQUEST_TIMEOUT_MS });
-  const alternativesSummary = buildAlternativesSummary(input.alternatives);
-
+async function generateDraft(
+  client: Groq,
+  input: GenerationInput,
+  revision?: { previousText: string; feedback: string },
+): Promise<Draft> {
   const systemPrompt = [
     `You are ${input.persona.name}, an AI persona with this voice: ${input.persona.styleGuide}`,
     `Editorial standards: ${input.persona.editorialStandards}`,
     "You are writing a short post (150-260 words) about ONE specific news item, paper, or repo — not a generic field overview.",
     `Write in first person as ${input.persona.name}. Be concrete: cite the actual claim, number, or mechanism from the source material rather than vague generalities.`,
-    'Output strict JSON only, no markdown code fences, matching exactly: {"text": string, "whySelected": string, "topicTags": string[]}',
+    'Output strict JSON only, no markdown code fences, matching exactly: {"text": string, "whySelected": string, "topicTags": string[], "stance": string}',
     '"text": the post body itself.',
     '"whySelected": 2-3 sentences, same voice, on why this specific topic is worth covering right now — editorial reasoning, not a restatement of the post.',
     '"topicTags": 3-6 short lowercase tags (1-3 words each) naming the specific entities/techniques covered (model names, companies, methods) — not generic tags like "ai" or "technology".',
+    '"stance": your genuine editorial opinion on this specific topic, 2-4 words (e.g. "cautiously optimistic", "skeptical of the claims", "impressed but wary of scale"). Not neutral filler — take an actual position consistent with your editorial standards.',
   ].join("\n");
 
-  const userPrompt = [
+  const userPromptLines = [
     `Source: ${input.winningCandidate.source}`,
     `Title: ${input.winningCandidate.title}`,
     `Summary: ${input.winningCandidate.summary}`,
     `URL: ${input.winningCandidate.url}`,
     `This cycle's editorial score: ${input.weightedTotal}/10`,
-  ].join("\n");
+  ];
+  if (input.relatedPastPost) {
+    userPromptLines.push(
+      `You've previously covered something related: ${input.relatedPastPost.label} (shared themes: ${input.relatedPastPost.sharedTerms.slice(0, 4).join(", ")}). If it fits naturally, briefly reference that earlier coverage as continuity (e.g. "Following up on..."). Don't force it if it doesn't read naturally.`,
+    );
+  }
+  if (revision) {
+    userPromptLines.push(
+      "",
+      "Your previous draft needs revision. An editor reviewed it and said:",
+      revision.feedback,
+      "",
+      `Previous draft: ${revision.previousText}`,
+      "",
+      "Write an improved version addressing that feedback. Same JSON output format.",
+    );
+  }
 
   const completion = await client.chat.completions.create({
     model: MODEL,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt },
+      { role: "user", content: userPromptLines.join("\n") },
     ],
     response_format: { type: "json_object" },
     temperature: 0.7,
@@ -153,7 +213,7 @@ export async function generatePost(input: GenerationInput): Promise<GeneratedPos
     throw new Error("Groq response had no message content");
   }
 
-  let parsed: { text?: unknown; whySelected?: unknown; topicTags?: unknown };
+  let parsed: { text?: unknown; whySelected?: unknown; topicTags?: unknown; stance?: unknown };
   try {
     parsed = JSON.parse(raw);
   } catch {
@@ -164,10 +224,6 @@ export async function generatePost(input: GenerationInput): Promise<GeneratedPos
     throw new Error("Groq response missing a usable 'text' field");
   }
 
-  const topicTags = sanitizeTags(
-    parsed.topicTags,
-    `${input.winningCandidate.title} ${input.winningCandidate.summary}`,
-  );
   const whySelected =
     typeof parsed.whySelected === "string" && parsed.whySelected.trim()
       ? parsed.whySelected.trim()
@@ -175,7 +231,118 @@ export async function generatePost(input: GenerationInput): Promise<GeneratedPos
 
   return {
     text: parsed.text.trim(),
-    rationale: `${whySelected} ${alternativesSummary}`.trim(),
-    topicTags,
+    whySelected,
+    topicTags: sanitizeTags(parsed.topicTags, `${input.winningCandidate.title} ${input.winningCandidate.summary}`),
+    stance: sanitizeStance(parsed.stance),
+  };
+}
+
+interface Critique {
+  approved: boolean;
+  score: number;
+  feedback: string;
+}
+
+/**
+ * A second, separate Groq call reviewing the draft against the persona's
+ * own standards — framed as an independent editor, not the writer
+ * grading its own work in the same breath. This is the "quality of
+ * editorial decision-making" applied to the *output*, not just the
+ * topic: judgment doesn't stop once a topic clears the pre-generation
+ * bar, a genuinely bad draft of a good topic should still get caught.
+ */
+async function critiqueDraft(client: Groq, persona: PersonaVoice, draftText: string): Promise<Critique> {
+  const systemPrompt = [
+    `You are ${persona.name}'s editor — not the writer. Review drafts critically against her own standards; don't rubber-stamp.`,
+    `${persona.name}'s voice: ${persona.styleGuide}`,
+    `Editorial standards: ${persona.editorialStandards}`,
+    `Score the draft 0-10 on how well it embodies that voice and those standards: specific and evidence-based (not generic), skeptical of unearned hype, genuinely opinionated rather than a neutral summary, and free of filler.`,
+    'Output strict JSON only: {"approved": boolean, "score": number, "feedback": string}',
+    `"approved" must be true only if score >= ${CRITIQUE_APPROVAL_THRESHOLD}.`,
+    '"feedback": if not approved, 1-2 concrete sentences on what specifically to fix. If approved, a brief note on what works.',
+  ].join("\n");
+
+  const completion = await client.chat.completions.create({
+    model: MODEL,
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: `Draft:\n\n${draftText}` },
+    ],
+    response_format: { type: "json_object" },
+    temperature: 0.3,
+    max_tokens: 300,
+  });
+
+  const raw = completion.choices[0]?.message?.content;
+  if (!raw) {
+    throw new Error("Groq critique response had no message content");
+  }
+
+  let parsed: { approved?: unknown; score?: unknown; feedback?: unknown };
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("Groq critique response was not valid JSON");
+  }
+
+  const score = typeof parsed.score === "number" ? parsed.score : 0;
+  return {
+    approved: parsed.approved === true && score >= CRITIQUE_APPROVAL_THRESHOLD,
+    score,
+    feedback: typeof parsed.feedback === "string" ? parsed.feedback : "No feedback returned.",
+  };
+}
+
+/**
+ * Real-mode failures (Groq unreachable, malformed response, timeout, or
+ * a draft that still fails self-critique after one revision) are thrown
+ * rather than silently falling back to a mock post. A runtime failure
+ * should behave like "nothing passed this cycle" — which the cycle
+ * route already treats as valid, expected editorial behavior — not
+ * quietly publish template content that looks like a real generated
+ * post but isn't labeled as one.
+ */
+export async function generatePost(input: GenerationInput): Promise<GeneratedPost> {
+  if (isMockMode()) {
+    logger.info("generation running in MOCK_MODE", {
+      reason: process.env.GROQ_API_KEY ? "MOCK_MODE=true" : "no GROQ_API_KEY set",
+    });
+    return buildMockPost(input);
+  }
+
+  const client = new Groq({ apiKey: process.env.GROQ_API_KEY, timeout: REQUEST_TIMEOUT_MS });
+
+  let draft = await generateDraft(client, input);
+  let critique = await critiqueDraft(client, input.persona, draft.text);
+
+  if (!critique.approved) {
+    logger.info("draft failed self-critique, revising once", {
+      score: critique.score,
+      feedback: critique.feedback,
+    });
+    draft = await generateDraft(client, input, { previousText: draft.text, feedback: critique.feedback });
+    critique = await critiqueDraft(client, input.persona, draft.text);
+    if (!critique.approved) {
+      throw new Error(
+        `Draft failed self-critique twice (score ${critique.score}/10): ${critique.feedback}`,
+      );
+    }
+  }
+
+  const rationale = [
+    draft.whySelected,
+    buildScoreBreakdown(input.scores, input.weightedTotal),
+    buildContinuityNote(input.relatedPastPost),
+    buildAlternativesSummary(input.alternatives),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return {
+    text: draft.text,
+    rationale,
+    topicTags: draft.topicTags,
+    stance: draft.stance,
   };
 }

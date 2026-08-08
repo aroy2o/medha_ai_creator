@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { isMockMode, sanitizeTags, buildAlternativesSummary, generatePost } from "./generation";
+import { isMockMode, sanitizeTags, buildAlternativesSummary, buildScoreBreakdown, generatePost } from "./generation";
 import type { JudgedCandidate } from "./editorial/judge";
 import type { DiscoveredCandidate } from "./discovery/types";
+import type { EditorialCriteriaScores } from "./editorial/scoring";
 
 describe("isMockMode", () => {
   const original = { ...process.env };
@@ -95,6 +96,44 @@ describe("buildAlternativesSummary", () => {
   });
 });
 
+describe("buildScoreBreakdown", () => {
+  const scores: EditorialCriteriaScores = {
+    relevance: 9,
+    substance: 7.5,
+    timeliness: 10,
+    novelty: 8,
+    credibility: 9,
+  };
+
+  it("states the weighted total and every criterion score", () => {
+    const breakdown = buildScoreBreakdown(scores, 8.4);
+    expect(breakdown).toContain("8.4/10");
+    expect(breakdown).toContain("relevance 9/10");
+    expect(breakdown).toContain("substance 7.5/10");
+    expect(breakdown).toContain("timeliness 10/10");
+    expect(breakdown).toContain("novelty 8/10");
+    expect(breakdown).toContain("credibility 9/10");
+  });
+});
+
+function makeGenerationInput(overrides: Partial<Parameters<typeof generatePost>[0]> = {}) {
+  return {
+    persona: { name: "Medha", styleGuide: "grounded and precise", editorialStandards: "evidence-based" },
+    winningCandidate: {
+      title: "New inference engine cuts p99 latency by 18%",
+      summary: "A production report on a new inference engine that reduced p99 latency under load.",
+      url: "https://example.com/post",
+      source: "Hacker News" as const,
+      publishedAt: new Date().toISOString(),
+    },
+    weightedTotal: 7.5,
+    scores: { relevance: 8, substance: 7, timeliness: 9, novelty: 7, credibility: 7 },
+    alternatives: [],
+    relatedPastPost: null,
+    ...overrides,
+  };
+}
+
 describe("generatePost (mock mode)", () => {
   const original = { ...process.env };
   beforeEach(() => {
@@ -105,23 +144,29 @@ describe("generatePost (mock mode)", () => {
   });
 
   it("returns realistic, non-empty placeholder content without calling any network API", async () => {
-    const result = await generatePost({
-      persona: { name: "Medha", styleGuide: "grounded and precise", editorialStandards: "evidence-based" },
-      winningCandidate: {
-        title: "New inference engine cuts p99 latency by 18%",
-        summary: "A production report on a new inference engine that reduced p99 latency under load.",
-        url: "https://example.com/post",
-        source: "Hacker News",
-        publishedAt: new Date().toISOString(),
-      },
-      weightedTotal: 7.5,
-      alternatives: [],
-    });
+    const result = await generatePost(makeGenerationInput());
 
     expect(result.text.length).toBeGreaterThan(20);
     expect(result.rationale).toMatch(/MOCK_MODE/);
     expect(result.topicTags.length).toBeGreaterThan(0);
+    expect(result.stance).toBeTruthy();
     // no dangling truncation artifact from a hard-truncated summary
     expect(result.text).not.toMatch(/\.\s+[a-z]/);
+  });
+
+  it("includes the score breakdown in the rationale", () => {
+    return generatePost(makeGenerationInput({ weightedTotal: 8.1 })).then((result) => {
+      expect(result.rationale).toContain("8.1/10");
+    });
+  });
+
+  it("mentions related prior coverage in the mock post when given a callback candidate", async () => {
+    const result = await generatePost(
+      makeGenerationInput({
+        relatedPastPost: { label: "GPU cost optimization", sharedTerms: ["gpu", "cost"] },
+      }),
+    );
+    expect(result.text).toContain("GPU cost optimization");
+    expect(result.rationale).toContain("GPU cost optimization");
   });
 });

@@ -82,3 +82,17 @@ export function scoreNovelty(candidateKeywords: Set<string>, memory: MemoryEntry
  * same-domain-different-topic measurement (0.081 margin).
  */
 export const NOVELTY_REJECT_THRESHOLD = 0.15;
+
+/**
+ * Below NOVELTY_REJECT_THRESHOLD but at or above this, a candidate isn't
+ * a duplicate — it's genuinely related to something already published.
+ * That's not a reason to reject it; it's an opportunity for the post to
+ * explicitly build on prior coverage instead of reading as unrelated.
+ * The measured same-domain-different-topic case (0.069 — see
+ * NOVELTY_REJECT_THRESHOLD's comment above) sits inside this band by
+ * design: "same broad domain, different specific story" is exactly what
+ * a natural callback ("following up on what I covered before...") is
+ * for. Below this, overlap is too tenuous to reference without it
+ * reading as a non sequitur.
+ */
+export const RELATED_CALLBACK_MIN = 0.05;

@@ -34,6 +34,12 @@ model Post {
   rationale String
   sources   String[]
   topicTags String[]
+  /**
+   * Short editorial stance/opinion on the topic (e.g. "skeptical",
+   * "cautiously optimistic") — makes "distinct editorial opinions"
+   * checkable across the feed rather than only asserted in a prompt.
+   */
+  stance    String   @default("observational")
   createdAt DateTime @default(now())
 
   agent           Agent           @relation(fields: [agentId], references: [id], onDelete: Cascade)
