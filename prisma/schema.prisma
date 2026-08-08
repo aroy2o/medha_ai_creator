@@ -53,6 +53,14 @@ model RejectedTopic {
   agentId                 String
   topic                   String
   reason                  String
+  /**
+   * The original candidate's URL. Lets a later cycle recognize "this
+   * exact topic was passed over before" (held-over reconsideration) via
+   * a reliable identifier instead of fuzzy title matching. Nullable
+   * because rows created before this column existed won't have it —
+   * that's fine, they simply won't match, not an error.
+   */
+  url                     String?
   consideredAt            DateTime @default(now())
   rejectedInFavorOfPostId String?
 
@@ -60,6 +68,7 @@ model RejectedTopic {
   rejectedInFavorOfPost Post? @relation("RejectedInFavorOfPost", fields: [rejectedInFavorOfPostId], references: [id], onDelete: SetNull)
 
   @@index([agentId, consideredAt])
+  @@index([agentId, url])
 }
 
 model PersonaProfile {

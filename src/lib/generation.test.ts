@@ -61,12 +61,13 @@ function makeJudged(title: string, score: number, category: JudgedCandidate["cat
   return {
     verdict: {
       candidate,
-      scores: { relevance: 5, substance: 5, timeliness: 5, novelty: 5, credibility: 5 },
+      scores: { relevance: 5, substance: 5, timeliness: 5, novelty: 5, credibility: 5, corroboration: 6 },
       weightedTotal: score,
       noveltyScore: 0,
       mostSimilarPostId: null,
       mostSimilarPostLabel: null,
       sharedTerms: [],
+      corroboratingSources: [],
       hardRejectReason: category === "hard_reject" ? "off-domain" : null,
     },
     category,
@@ -103,6 +104,7 @@ describe("buildScoreBreakdown", () => {
     timeliness: 10,
     novelty: 8,
     credibility: 9,
+    corroboration: 8,
   };
 
   it("states the weighted total and every criterion score", () => {
@@ -113,6 +115,7 @@ describe("buildScoreBreakdown", () => {
     expect(breakdown).toContain("timeliness 10/10");
     expect(breakdown).toContain("novelty 8/10");
     expect(breakdown).toContain("credibility 9/10");
+    expect(breakdown).toContain("corroboration 8/10");
   });
 });
 
@@ -127,9 +130,11 @@ function makeGenerationInput(overrides: Partial<Parameters<typeof generatePost>[
       publishedAt: new Date().toISOString(),
     },
     weightedTotal: 7.5,
-    scores: { relevance: 8, substance: 7, timeliness: 9, novelty: 7, credibility: 7 },
+    scores: { relevance: 8, substance: 7, timeliness: 9, novelty: 7, credibility: 7, corroboration: 6 },
     alternatives: [],
     relatedPastPost: null,
+    corroboratingSources: [],
+    heldOverSince: null,
     ...overrides,
   };
 }
@@ -168,5 +173,28 @@ describe("generatePost (mock mode)", () => {
     );
     expect(result.text).toContain("GPU cost optimization");
     expect(result.rationale).toContain("GPU cost optimization");
+  });
+
+  it("notes independent corroboration in the rationale when other sources covered the same story", async () => {
+    const result = await generatePost(
+      makeGenerationInput({ corroboratingSources: ["arXiv", "Simon Willison"] }),
+    );
+    expect(result.rationale).toContain("arXiv");
+    expect(result.rationale).toContain("Simon Willison");
+  });
+
+  it("omits the corroboration note (though the score breakdown still reports the dimension) when there is none", async () => {
+    const result = await generatePost(makeGenerationInput({ corroboratingSources: [] }));
+    expect(result.rationale).not.toContain("Independently corroborated");
+  });
+
+  it("notes when a topic was previously held over for a stronger story", async () => {
+    const result = await generatePost(makeGenerationInput({ heldOverSince: new Date("2026-08-05") }));
+    expect(result.rationale).toMatch(/passed over/i);
+  });
+
+  it("says nothing about being held over when it wasn't", async () => {
+    const result = await generatePost(makeGenerationInput({ heldOverSince: null }));
+    expect(result.rationale).not.toMatch(/passed over/i);
   });
 });

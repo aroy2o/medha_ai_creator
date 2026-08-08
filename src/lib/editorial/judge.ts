@@ -1,5 +1,7 @@
 import type { DiscoveredCandidate } from "@/lib/discovery/types";
 import type { MemoryPost } from "./memory";
+import { extractKeywords } from "./keywords";
+import type { CandidateWithKeywords } from "./corroboration";
 import { scoreCandidate, APPROVAL_THRESHOLD, type EditorialCriteriaScores, type EditorialVerdict } from "./scoring";
 
 export type RejectionCategory = "hard_reject" | "below_bar" | "outranked";
@@ -27,6 +29,7 @@ const WEAKNESS_DESCRIPTIONS: Record<keyof EditorialCriteriaScores, (score: numbe
   timeliness: (s) => `not timely — dated or stale (${s}/10)`,
   novelty: (s) => `overlaps meaningfully with prior coverage (${s}/10)`,
   credibility: (s) => `lower source credibility for this kind of claim (${s}/10)`,
+  corroboration: (s) => `no independent second source covering this (${s}/10)`,
 };
 
 function buildBelowBarReason(v: EditorialVerdict): string {
@@ -47,8 +50,17 @@ export interface JudgeInput {
 }
 
 export function judgeCandidates({ candidates, pastPosts, domainVocabulary }: JudgeInput): JudgeResult {
+  // Extracted once per candidate for the whole cycle, not once per
+  // pairwise corroboration comparison — the expensive part (regex-based
+  // keyword extraction) stays O(n); only the cheap Jaccard comparisons
+  // inside scoreCorroboration are O(n^2).
+  const candidatesWithKeywords: CandidateWithKeywords[] = candidates.map((candidate) => ({
+    candidate,
+    keywords: new Set(extractKeywords(`${candidate.title} ${candidate.summary}`)),
+  }));
+
   const verdicts = candidates.map((candidate) =>
-    scoreCandidate({ candidate, pastPosts, domainVocabulary }),
+    scoreCandidate({ candidate, pastPosts, domainVocabulary, allCandidatesWithKeywords: candidatesWithKeywords }),
   );
 
   const sorted = [...verdicts].sort((a, b) => b.weightedTotal - a.weightedTotal);

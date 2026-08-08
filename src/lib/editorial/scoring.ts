@@ -1,6 +1,7 @@
 import type { DiscoveredCandidate } from "@/lib/discovery/types";
 import { extractKeywords } from "./keywords";
 import { buildMemoryIndex, scoreNovelty, NOVELTY_REJECT_THRESHOLD, type MemoryPost } from "./memory";
+import { scoreCorroboration, type CandidateWithKeywords } from "./corroboration";
 
 /**
  * Baseline domain vocabulary for "production AI reliability" — merged at
@@ -41,6 +42,7 @@ export interface EditorialCriteriaScores {
   timeliness: number;
   novelty: number;
   credibility: number;
+  corroboration: number;
 }
 
 export interface EditorialVerdict {
@@ -51,15 +53,23 @@ export interface EditorialVerdict {
   mostSimilarPostId: string | null;
   mostSimilarPostLabel: string | null;
   sharedTerms: string[];
+  /** Other sources that independently surfaced the same story this cycle. */
+  corroboratingSources: DiscoveredCandidate["source"][];
   hardRejectReason: string | null;
 }
 
+// Rebalanced from the original 5-criterion weighting (relevance .30,
+// substance .25, timeliness .15, novelty .20, credibility .10) to make
+// room for corroboration without discarding the reasoning behind the
+// original split — relevance and substance still matter most, but each
+// gave up a little.
 const WEIGHTS: EditorialCriteriaScores = {
-  relevance: 0.3,
-  substance: 0.25,
+  relevance: 0.25,
+  substance: 0.2,
   timeliness: 0.15,
-  novelty: 0.2,
+  novelty: 0.15,
   credibility: 0.1,
+  corroboration: 0.15,
 };
 
 /** Weighted total must clear this (0-10 scale) to be publishable at all. */
@@ -168,27 +178,53 @@ export function scoreCredibility(source: DiscoveredCandidate["source"]): number 
   return SOURCE_CREDIBILITY[source];
 }
 
+/**
+ * Baseline 6 (a candidate with zero corroboration isn't penalized — being
+ * the only source to cover something yet is often exactly when it's most
+ * valuable to cover, not a mark against it), +2 per independently
+ * corroborating source, capped at 10. Deliberately not scaled to reward
+ * corroboration as heavily as it could: this is a bonus signal on top of
+ * relevance/substance/credibility, not a replacement for them — a
+ * corroborated but low-substance story shouldn't out-score an
+ * uncorroborated but rigorous one.
+ */
+export function scoreCorroborationDimension(corroboratingSourceCount: number): number {
+  return clamp(6 + corroboratingSourceCount * 2, 0, 10);
+}
+
 export interface ScoreCandidateInput {
   candidate: DiscoveredCandidate;
   pastPosts: MemoryPost[];
   domainVocabulary: string[];
+  /** Every candidate discovered this cycle (including this one) with
+   * pre-extracted keywords, for corroboration comparison. Extracting
+   * once per candidate up front and passing the shared list in avoids
+   * O(n^2) keyword re-extraction across a whole cycle's candidate pool
+   * — see judge.ts. Defaults to empty (no corroboration data available,
+   * e.g. when calling scoreCandidate directly/in isolation), which is
+   * equivalent to "nothing else corroborates this."
+   */
+  allCandidatesWithKeywords?: CandidateWithKeywords[];
 }
 
 export function scoreCandidate({
   candidate,
   pastPosts,
   domainVocabulary,
+  allCandidatesWithKeywords = [],
 }: ScoreCandidateInput): EditorialVerdict {
   const text = `${candidate.title} ${candidate.summary}`;
   const candidateKeywords = new Set(extractKeywords(text));
   const memory = buildMemoryIndex(pastPosts);
   const novelty = scoreNovelty(candidateKeywords, memory);
+  const corroboration = scoreCorroboration({ candidate, keywords: candidateKeywords }, allCandidatesWithKeywords);
 
   const relevance = scoreRelevance(text, [...BASE_DOMAIN_VOCABULARY, ...domainVocabulary]);
   const substance = scoreSubstance(text);
   const timeliness = scoreTimeliness(candidate.publishedAt, candidate.source);
   const noveltyScore = clamp(10 * (1 - novelty.score * 2), 0, 10);
   const credibility = scoreCredibility(candidate.source);
+  const corroborationScore = scoreCorroborationDimension(corroboration.count);
 
   // Rounded for display — these end up in the public rationale/UI via
   // buildScoreBreakdown, not just used internally, so an unrounded value
@@ -199,6 +235,7 @@ export function scoreCandidate({
     timeliness: round2(timeliness),
     novelty: round2(noveltyScore),
     credibility: round2(credibility),
+    corroboration: round2(corroborationScore),
   };
 
   const weightedTotal =
@@ -206,7 +243,8 @@ export function scoreCandidate({
     scores.substance * WEIGHTS.substance +
     scores.timeliness * WEIGHTS.timeliness +
     scores.novelty * WEIGHTS.novelty +
-    scores.credibility * WEIGHTS.credibility;
+    scores.credibility * WEIGHTS.credibility +
+    scores.corroboration * WEIGHTS.corroboration;
 
   let hardRejectReason: string | null = null;
   if (novelty.score >= NOVELTY_REJECT_THRESHOLD && novelty.mostSimilar) {
@@ -226,6 +264,7 @@ export function scoreCandidate({
     mostSimilarPostId: novelty.mostSimilar?.postId ?? null,
     mostSimilarPostLabel: novelty.mostSimilar?.label ?? null,
     sharedTerms: novelty.sharedTerms,
+    corroboratingSources: corroboration.fromSources,
     hardRejectReason,
   };
 }

@@ -7,6 +7,7 @@ import { judgeCandidates, type JudgedCandidate } from "@/lib/editorial/judge";
 import { RELATED_CALLBACK_MIN } from "@/lib/editorial/memory";
 import { generatePost, type RelatedPastPost } from "@/lib/generation";
 import { extractKeywords } from "@/lib/editorial/keywords";
+import { categorizeRejectionReason } from "@/lib/editorialLogDisplay";
 
 export const dynamic = "force-dynamic";
 // Discovery hits 4 external sources sequentially plus one Groq call;
@@ -33,6 +34,7 @@ function secretsMatch(provided: string, expected: string): boolean {
 interface RejectionRow {
   topic: string;
   reason: string;
+  url: string;
   rejectedInFavorOfPostId: string | null;
 }
 
@@ -40,6 +42,7 @@ function toRejectionRows(considered: JudgedCandidate[], publishedPostId: string 
   return considered.map((item) => ({
     topic: item.verdict.candidate.title,
     reason: item.reason,
+    url: item.verdict.candidate.url,
     rejectedInFavorOfPostId: item.category === "outranked" ? publishedPostId : null,
   }));
 }
@@ -171,6 +174,21 @@ export async function POST(request: NextRequest) {
           ? { label: judged.winner.mostSimilarPostLabel, sharedTerms: judged.winner.sharedTerms }
           : null;
 
+      // "Held over": this exact URL lost to a stronger story in a past
+      // cycle (logged with category "outranked" — never for hard-reject
+      // or below-bar, since those were rejected on their own merits, not
+      // just bad timing) and is winning now that nothing outranks it.
+      // Real editors hold a good story for a slower day; this is memory
+      // used for more than duplicate prevention.
+      const pastRejection = await prisma.rejectedTopic.findFirst({
+        where: { agentId: agent.id, url: judged.winner.candidate.url },
+        orderBy: { consideredAt: "desc" },
+      });
+      const heldOverSince =
+        pastRejection && categorizeRejectionReason(pastRejection.reason).tone === "outranked"
+          ? pastRejection.consideredAt
+          : null;
+
       const generated = await generatePost({
         persona: {
           name: agent.name,
@@ -182,6 +200,8 @@ export async function POST(request: NextRequest) {
         scores: judged.winner.scores,
         alternatives: judged.considered,
         relatedPastPost,
+        corroboratingSources: judged.winner.corroboratingSources,
+        heldOverSince,
       });
 
       // Fold a few keywords from the *original candidate's* title into
@@ -225,6 +245,7 @@ export async function POST(request: NextRequest) {
       rows.unshift({
         topic: judged.winner.candidate.title,
         reason: `Cleared the editorial bar at ${judged.winner.weightedTotal}/10 but text generation failed this cycle; nothing published.`,
+        url: judged.winner.candidate.url,
         rejectedInFavorOfPostId: null,
       });
     }

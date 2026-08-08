@@ -26,6 +26,12 @@ export interface GenerationInput {
   /** Set when this topic is related-but-distinct from a past post — see
    * lib/editorial/memory.ts's RELATED_CALLBACK_MIN. */
   relatedPastPost: RelatedPastPost | null;
+  /** Other sources that independently surfaced the same story this cycle
+   * — see lib/editorial/corroboration.ts. */
+  corroboratingSources: DiscoveredCandidate["source"][];
+  /** Set when this exact URL was outranked (not rejected on its own
+   * merits) in a past cycle and is winning now that nothing beats it. */
+  heldOverSince: Date | null;
 }
 
 export interface GeneratedPost {
@@ -103,13 +109,27 @@ export function buildAlternativesSummary(alternatives: JudgedCandidate[]): strin
 export function buildScoreBreakdown(scores: EditorialCriteriaScores, weightedTotal: number): string {
   return (
     `Scored ${weightedTotal}/10 this cycle — relevance ${scores.relevance}/10, substance ${scores.substance}/10, ` +
-    `timeliness ${scores.timeliness}/10, novelty ${scores.novelty}/10, source credibility ${scores.credibility}/10.`
+    `timeliness ${scores.timeliness}/10, novelty ${scores.novelty}/10, source credibility ${scores.credibility}/10, ` +
+    `cross-source corroboration ${scores.corroboration}/10.`
   );
+}
+
+/** Separate from the score breakdown (a number alone doesn't say who) —
+ * names the actual other sources when corroboration was detected. */
+function buildCorroborationNote(sources: DiscoveredCandidate["source"][]): string {
+  if (sources.length === 0) return "";
+  return `Independently corroborated by ${sources.join(" and ")} this cycle.`;
 }
 
 function buildContinuityNote(related: RelatedPastPost | null): string {
   if (!related) return "";
   return `Related to earlier coverage of ${related.label} (shared: ${related.sharedTerms.slice(0, 4).join(", ") || "overlapping themes"}) — treated as a continuation, not a repeat.`;
+}
+
+function buildHeldOverNote(heldOverSince: Date | null): string {
+  if (!heldOverSince) return "";
+  const date = heldOverSince.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return `This topic was passed over on ${date} for a stronger story that cycle — nothing outranked it this time.`;
 }
 
 /** Discovery summaries are hard-truncated and can end mid-sentence; trim
@@ -140,6 +160,8 @@ function buildMockPost(input: GenerationInput): GeneratedPost {
       "[MOCK_MODE] No GROQ_API_KEY is configured, so this text and rationale are template-generated, not model-generated. Set GROQ_API_KEY and MOCK_MODE=false to see real generation — see README.md.",
       buildScoreBreakdown(input.scores, input.weightedTotal),
       buildContinuityNote(input.relatedPastPost),
+      buildCorroborationNote(input.corroboratingSources),
+      buildHeldOverNote(input.heldOverSince),
       buildAlternativesSummary(input.alternatives),
     ]
       .filter(Boolean)
@@ -183,6 +205,16 @@ async function generateDraft(
   if (input.relatedPastPost) {
     userPromptLines.push(
       `You've previously covered something related: ${input.relatedPastPost.label} (shared themes: ${input.relatedPastPost.sharedTerms.slice(0, 4).join(", ")}). If it fits naturally, briefly reference that earlier coverage as continuity (e.g. "Following up on..."). Don't force it if it doesn't read naturally.`,
+    );
+  }
+  if (input.corroboratingSources.length > 0) {
+    userPromptLines.push(
+      `This story was independently corroborated by ${input.corroboratingSources.join(" and ")} this cycle — not just one source's claim. If it fits naturally, you can note that multiple sources are covering this. Don't force it.`,
+    );
+  }
+  if (input.heldOverSince) {
+    userPromptLines.push(
+      `You considered this exact story before (on ${input.heldOverSince.toDateString()}) but a stronger story won that cycle instead. Nothing outranked it this time. If it fits naturally, you can briefly acknowledge you're circling back to it. Don't force it.`,
     );
   }
   if (revision) {
@@ -333,6 +365,8 @@ export async function generatePost(input: GenerationInput): Promise<GeneratedPos
     draft.whySelected,
     buildScoreBreakdown(input.scores, input.weightedTotal),
     buildContinuityNote(input.relatedPastPost),
+    buildCorroborationNote(input.corroboratingSources),
+    buildHeldOverNote(input.heldOverSince),
     buildAlternativesSummary(input.alternatives),
   ]
     .filter(Boolean)
