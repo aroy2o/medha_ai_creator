@@ -10,10 +10,11 @@ before anyone looks at feature quality.**
       returns 200 unauthenticated, as does the raw README.
 - [x] **AI Usage Log is included and accessible** — [`PROMPTS.md`](./PROMPTS.md), explicitly labeled
       as such and linked from the top of `README.md`.
-- [ ] **Live Demo URL is functional** — needs a fresh check after the most recent deploy. The DB
-      connection issue from earlier (see below) is fixed and verified server-side, but re-check the
-      actual URL after your next deploy: hit `/`, `/feed`, `/editorial-log`, `/memory`, and
-      `GET /api/agent/feed?agentId=...` and confirm none of them 500.
+- [x] **Live Demo URL is functional** — verified 2026-08-09 against the real production URL,
+      `https://medha-ai.aroy2o.xyz` (custom domain, already configured): all four pages
+      (`/`, `/feed`, `/editorial-log`, `/memory`) return 200 with no error markers, and
+      `GET /api/agent/feed?agentId=...` returns real posts in the exact contract shape, reverse
+      chronological, including the newer stance/score-breakdown/topicTags additions.
 - [ ] **cron-job.org is actually configured and firing** — this is the one that matters most and
       isn't something I can verify from here (no Vercel/cron-job.org access). Every post published
       so far was from *manual* testing, not an autonomous trigger. If this isn't wired up before the
@@ -56,17 +57,15 @@ before anyone looks at feature quality.**
 
 1. ~~Push to a git remote~~ — done.
 
-2. **Confirm Vercel's `DATABASE_URL` is exactly this** (verified end-to-end through Prisma's real
-   adapter, not just reachability):
-   ```
-   postgresql://postgres.rcdzjgkjppgqijfhqlsf:<URL-ENCODED-PASSWORD>@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true
-   ```
-   Also set: `GROQ_API_KEY`, `MOCK_MODE=false`, `CRON_SECRET`, `CYCLE_INTERVAL_HOURS` (defaults to
-   `4` if unset). After changing any env var, **redeploy** — Vercel doesn't retroactively apply env
-   var changes to a deployment that's already running.
+2. ~~Confirm Vercel's `DATABASE_URL` is the pooled connection string~~ — done, verified 2026-08-09:
+   `GET /api/agent/feed` on the live production URL returns real data, so the DB connection is
+   confirmed working end-to-end in production, not just locally.
 
-3. **Set up cron-job.org** (the highest-priority remaining item — see checklist above):
-   - New cron job → URL: `https://<your-vercel-domain>/api/agent/cycle`
+3. ~~Custom domain~~ — done: `https://medha-ai.aroy2o.xyz`.
+
+4. **Set up cron-job.org** (the one remaining item, and the highest-priority one — see checklist
+   above):
+   - New cron job → URL: `https://medha-ai.aroy2o.xyz/api/agent/cycle`
    - Method: `POST`
    - Custom header: `x-cron-secret: <your CRON_SECRET value>`
    - Body: none needed (the route defaults to the one existing agent when no `agentId` is given).
@@ -76,11 +75,9 @@ before anyone looks at feature quality.**
      without you doing anything — that's the actual proof this criterion is met, not just that the
      cron job exists.
 
-4. **Custom domain (optional).** Not required for the evaluator's feed-polling to work.
-
-5. **Give the evaluator whatever they need to discover Medha** — typically just the base URL. They
-   call `POST /api/agent/init` themselves (idempotent-safe) and then poll
-   `GET /api/agent/feed?agentId=...`.
+5. **Give the evaluator whatever they need to discover Medha** — typically just
+   `https://medha-ai.aroy2o.xyz`. They call `POST /api/agent/init` themselves (idempotent-safe) and
+   then poll `GET /api/agent/feed?agentId=...`.
 
 ## Known limitations, not blockers
 
