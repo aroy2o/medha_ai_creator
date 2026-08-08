@@ -15,7 +15,7 @@ export async function discoverGitHubTrending(): Promise<DiscoveryResult> {
   try {
     const res = await fetchWithTimeout(PAGE_URL, {
       timeoutMs: 10_000,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AriaBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; MedhaBot/1.0)" },
     });
     if (!res.ok) {
       throw new Error(`github.com/trending responded ${res.status}`);

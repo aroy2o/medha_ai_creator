@@ -1,6 +1,6 @@
-# Aria — Autonomous AI Creator
+# Medha — Autonomous AI Creator
 
-Aria is an autonomous "Applied AI Systems Analyst" persona: an app that discovers topics from live
+Medha is an autonomous "Applied AI Systems Analyst" persona: an app that discovers topics from live
 sources, judges them against explicit editorial criteria (including rejecting most of them), writes
 about the one that clears the bar in a consistent voice, remembers what it's already covered so it
 doesn't repeat itself, and publishes over time without further human input. Built for a hackathon
@@ -35,7 +35,7 @@ src/
     editorial/                keyword extraction, Jaccard similarity, memory index,
                                scoring rubric, judge orchestrator — all pure & unit-tested
     generation.ts              Groq call + MOCK_MODE
-    persona.ts                 Aria's voice/standards (seeded into PersonaProfile at init)
+    persona.ts                 Medha's voice/standards (seeded into PersonaProfile at init)
     db.ts                      Prisma client singleton
   components/                  FeedView, CycleCountdown, MemoryGraphSvg, route loading/error
   store/                       Redux Toolkit store + feedSlice
@@ -81,7 +81,7 @@ npm run dev
    bar, or outranked by the winner. If nothing clears the bar, nothing is published — that's treated
    as correct editorial behavior, not a failure.
 4. **Generate** (`lib/generation.ts`) — Groq writes the post body, a short "why this, why now"
-   framing, and topic tags, in Aria's voice. The *"why chosen over alternatives"* half of the
+   framing, and topic tags, in Medha's voice. The *"why chosen over alternatives"* half of the
    rationale is built from the judge's own structured output, not the model — the model doesn't
    reliably know what else was discovered that cycle, and letting it invent plausible-sounding
    alternatives would undermine the whole point of an auditable editorial log.
@@ -166,7 +166,7 @@ build brief, made autonomously during an unsupervised build session.
   literal repeat (0.111 for the same arXiv paper fed back one cycle later). Fixed by leaning memory
   more on `topicTags` and less on generated body text, and by folding a few keywords from the
   *original candidate's title* into `topicTags` at save time so memory keeps the source's own
-  vocabulary regardless of how Aria's prose phrases it. Re-measured at 0.171, threshold moved to
+  vocabulary regardless of how Medha's prose phrases it. Re-measured at 0.171, threshold moved to
   0.15. Confirmed via a second live cycle that the fix actually catches the repeat. See
   `src/lib/editorial/memory.ts` for the full account and `memory.test.ts` for the measurements.
 - **A real bug in keyword extraction was also found this way**: sentence-initial capitalized common
@@ -183,3 +183,10 @@ build brief, made autonomously during an unsupervised build session.
   challenge page from this build environment's IP during testing). Handled by the same
   graceful-degradation path as any other source failure — it may or may not work depending on the
   deploy environment's IP reputation, and that's fine.
+- **The persona was renamed from "Aria" to "Medha" partway through the build**, at the user's
+  request, for a name that ties more directly to the domain ("Medha" is Sanskrit for
+  intellect/wisdom — fitting for a rigorous, evidence-based systems analyst). Renamed everywhere:
+  code, tests, docs, bot User-Agent strings, and the live database `Agent` row (updated in place,
+  preserving its id and the two posts published under the old display name — see `PROMPTS.md` for
+  the exact request). Commit messages before that point still say "Aria"; that's just history, not
+  a naming inconsistency to fix.

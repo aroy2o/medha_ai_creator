@@ -196,7 +196,7 @@ export function scoreCandidate({
     )}% keyword overlap (shared: ${novelty.sharedTerms.slice(0, 6).join(", ") || "n/a"}).`;
   } else if (relevance === 0) {
     hardRejectReason =
-      "No detected connection to Aria's domain (production AI reliability, deployment, failure modes) — zero domain-vocabulary matches.";
+      "No detected connection to Medha's domain (production AI reliability, deployment, failure modes) — zero domain-vocabulary matches.";
   }
 
   return {

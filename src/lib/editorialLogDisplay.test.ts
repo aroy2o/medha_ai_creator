@@ -9,7 +9,7 @@ describe("categorizeRejectionReason", () => {
   });
 
   it("recognizes an off-domain rejection", () => {
-    expect(categorizeRejectionReason("No detected connection to Aria's domain.").tone).toBe("off-domain");
+    expect(categorizeRejectionReason("No detected connection to Medha's domain.").tone).toBe("off-domain");
   });
 
   it("recognizes a generation failure", () => {

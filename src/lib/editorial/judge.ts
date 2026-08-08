@@ -18,11 +18,11 @@ export interface JudgeResult {
 
 // At least a few alternatives should be visible in the editorial log per
 // cycle even when far more candidates existed; capped so the log stays a
-// readable "what did Aria weigh" summary rather than a dump of everything.
+// readable "what did Medha weigh" summary rather than a dump of everything.
 const MAX_LOGGED_REJECTIONS = 8;
 
 const WEAKNESS_DESCRIPTIONS: Record<keyof EditorialCriteriaScores, (score: number) => string> = {
-  relevance: (s) => `limited connection to Aria's domain (${s}/10)`,
+  relevance: (s) => `limited connection to Medha's domain (${s}/10)`,
   substance: (s) => `reads as more hype than technical substance (${s}/10)`,
   timeliness: (s) => `not timely — dated or stale (${s}/10)`,
   novelty: (s) => `overlaps meaningfully with prior coverage (${s}/10)`,
@@ -37,7 +37,7 @@ function buildBelowBarReason(v: EditorialVerdict): string {
 }
 
 function buildOutrankedReason(v: EditorialVerdict, winner: EditorialVerdict): string {
-  return `Cleared the editorial bar at ${v.weightedTotal}/10 but ranked below "${winner.candidate.title}" (${winner.weightedTotal}/10) this cycle. Aria publishes one post per cycle rather than front-loading every plausible story at once.`;
+  return `Cleared the editorial bar at ${v.weightedTotal}/10 but ranked below "${winner.candidate.title}" (${winner.weightedTotal}/10) this cycle. Medha publishes one post per cycle rather than front-loading every plausible story at once.`;
 }
 
 export interface JudgeInput {

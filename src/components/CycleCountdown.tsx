@@ -63,7 +63,7 @@ export function CycleCountdown({ lastCycleAt, intervalHours }: CycleCountdownPro
   if (!lastCycleAt) {
     return (
       <p className="text-sm text-neutral-500">
-        First cycle pending — Aria hasn&apos;t run a discovery pass yet.
+        First cycle pending — Medha hasn&apos;t run a discovery pass yet.
       </p>
     );
   }

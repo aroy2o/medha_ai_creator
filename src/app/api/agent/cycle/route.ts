@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
       // writing the post body, which measurably weakens future memory
       // comparisons (see memory.ts's NOVELTY_REJECT_THRESHOLD comment) —
       // this keeps the source's own vocabulary in memory regardless of
-      // how Aria's prose ends up phrasing it.
+      // how Medha's prose ends up phrasing it.
       const titleKeywords = extractKeywords(judged.winner.candidate.title).slice(0, 4);
       const enrichedTags = [...new Set([...generated.topicTags, ...titleKeywords])];
 

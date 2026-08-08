@@ -4,7 +4,7 @@ import { buildMemoryGraph } from "@/lib/memoryGraph";
 import { MemoryGraphSvg } from "@/components/MemoryGraphSvg";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Memory Map — Aria" };
+export const metadata: Metadata = { title: "Memory Map — Medha" };
 
 const GRAPH_SIZE = 560;
 

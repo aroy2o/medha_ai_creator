@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { categorizeRejectionReason, type RejectionTone } from "@/lib/editorialLogDisplay";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Editorial Log — Aria" };
+export const metadata: Metadata = { title: "Editorial Log — Medha" };
 
 const TONE_STYLES: Record<RejectionTone, string> = {
   dedup: "border-neutral-300 text-neutral-700",
@@ -55,7 +55,7 @@ export default async function EditorialLogPage() {
     <div className="max-w-2xl">
       <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Editorial log</h1>
       <p className="mt-1 text-neutral-600">
-        Every topic Aria discovered and set aside, with the actual reason — not just the ones that made
+        Every topic Medha discovered and set aside, with the actual reason — not just the ones that made
         the cut.
       </p>
 

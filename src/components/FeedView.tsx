@@ -111,7 +111,7 @@ export function FeedView({ agentId }: { agentId: string }) {
   if (posts.length === 0) {
     return (
       <p className="rounded border border-neutral-200 bg-white px-4 py-6 text-sm text-neutral-500">
-        No posts published yet — first cycle pending. Check back after Aria&apos;s next discovery pass.
+        No posts published yet — first cycle pending. Check back after Medha&apos;s next discovery pass.
       </p>
     );
   }

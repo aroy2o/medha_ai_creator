@@ -74,7 +74,7 @@ export function scoreNovelty(candidateKeywords: Set<string>, memory: MemoryEntry
  * more on topicTags (curated, not prose-diluted) and less on generated
  * body text; (2) the cycle route now also folds a few keywords extracted
  * from the *original candidate's title* into topicTags at save time, so
- * memory keeps the source's own vocabulary even when Aria's prose
+ * memory keeps the source's own vocabulary even when Medha's prose
  * doesn't reuse it. With both applied the same repeat-topic case
  * re-measured at 0.171 — better, but still short of 0.2, so the
  * threshold itself also moved down to 0.15, which now correctly

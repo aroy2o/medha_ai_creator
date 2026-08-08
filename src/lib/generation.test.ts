@@ -106,7 +106,7 @@ describe("generatePost (mock mode)", () => {
 
   it("returns realistic, non-empty placeholder content without calling any network API", async () => {
     const result = await generatePost({
-      persona: { name: "Aria", styleGuide: "grounded and precise", editorialStandards: "evidence-based" },
+      persona: { name: "Medha", styleGuide: "grounded and precise", editorialStandards: "evidence-based" },
       winningCandidate: {
         title: "New inference engine cuts p99 latency by 18%",
         summary: "A production report on a new inference engine that reduced p99 latency under load.",

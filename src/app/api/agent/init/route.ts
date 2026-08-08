@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
-import { ARIA_PERSONA } from "@/lib/persona";
+import { MEDHA_PERSONA } from "@/lib/persona";
 import { logger } from "@/lib/logger";
 
 export const dynamic = "force-dynamic";
@@ -59,9 +59,9 @@ export async function POST(request: NextRequest) {
           domain,
           personaProfile: {
             create: {
-              styleGuide: ARIA_PERSONA.styleGuide,
-              standingInterests: [...ARIA_PERSONA.standingInterests],
-              editorialStandards: ARIA_PERSONA.editorialStandards,
+              styleGuide: MEDHA_PERSONA.styleGuide,
+              standingInterests: [...MEDHA_PERSONA.standingInterests],
+              editorialStandards: MEDHA_PERSONA.editorialStandards,
             },
           },
         },

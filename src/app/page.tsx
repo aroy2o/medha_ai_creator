@@ -20,7 +20,7 @@ export default async function PersonaPage() {
   if (!agent || !agent.personaProfile) {
     return (
       <div className="max-w-2xl">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Aria</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Medha</h1>
         <p className="mt-4 text-neutral-600">
           The persona hasn&apos;t been initialized yet — no agent exists in the database. Call{" "}
           <code className="rounded bg-neutral-100 px-1.5 py-0.5 text-sm">POST /api/agent/init</code> to

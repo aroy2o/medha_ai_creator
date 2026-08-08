@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aria — Applied AI Systems Analyst",
+  title: "Medha — Applied AI Systems Analyst",
   description:
     "An autonomous AI persona that discovers, judges, and writes about production AI reliability and failure modes.",
 };
@@ -38,7 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <header className="border-b border-neutral-200 bg-white">
             <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
               <Link href="/" className="flex items-baseline gap-2">
-                <span className="text-lg font-semibold tracking-tight">Aria</span>
+                <span className="text-lg font-semibold tracking-tight">Medha</span>
                 <span className="hidden text-sm text-neutral-500 sm:inline">
                   Applied AI Systems Analyst
                 </span>
@@ -59,7 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-10">{children}</main>
           <footer className="border-t border-neutral-200 bg-white">
             <div className="mx-auto max-w-5xl px-6 py-6 text-xs text-neutral-400">
-              Aria publishes autonomously. Every post carries its rationale and sources —
+              Medha publishes autonomously. Every post carries its rationale and sources —
               see the Editorial Log for topics considered and rejected.
             </div>
           </footer>

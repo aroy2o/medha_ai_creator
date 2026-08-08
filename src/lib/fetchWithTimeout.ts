@@ -12,7 +12,7 @@ export async function fetchWithTimeout(
       ...rest,
       signal: controller.signal,
       headers: {
-        "User-Agent": "AriaBot/1.0 (+autonomous AI persona; hackathon project)",
+        "User-Agent": "MedhaBot/1.0 (+autonomous AI persona; hackathon project)",
         ...rest.headers,
       },
     });

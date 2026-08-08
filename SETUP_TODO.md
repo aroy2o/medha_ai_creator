@@ -7,8 +7,10 @@ What's already done, what's still yours to do, in order.
 - Real Groq API key and Supabase Postgres password were provided mid-build and are already wired
   into the local, gitignored `.env` — nothing placeholder about them.
 - The database schema is migrated on the live Supabase instance (`prisma/migrations/`).
-- The Aria persona has been **initialized for real** against that live database:
-  `POST /api/agent/init` was called with `{ name: "Aria", domain: "Applied AI Systems Analyst — production AI reliability, deployment lessons, and failure modes" }`.
+- The Medha persona has been **initialized for real** against that live database:
+  `POST /api/agent/init` was called with `{ name: "Aria", domain: "Applied AI Systems Analyst — production AI reliability, deployment lessons, and failure modes" }`, then later renamed in place to
+  "Medha" (same `agentId`, same posts — see README.md "Decisions"). If you call `/init` again to
+  re-derive the id, use `name: "Medha"` now, not "Aria".
   The resulting `agentId` isn't recorded anywhere outside the database itself (by design — it's not
   a secret, just not something this file should hardcode). To find it: open Prisma Studio
   (`npx prisma studio`) and check the `Agent` table, or call `POST /api/agent/init` again with the
@@ -59,7 +61,7 @@ What's already done, what's still yours to do, in order.
    under the Vercel project's Domains tab and follow Vercel's DNS instructions (CNAME or A record
    at your registrar). Not required for the evaluator's feed-polling to work.
 
-5. **Give the evaluator whatever they need to discover Aria** — typically just the base URL. They
+5. **Give the evaluator whatever they need to discover Medha** — typically just the base URL. They
    call `POST /api/agent/init` themselves (idempotent-safe — they'll get the same `agentId` back
    if you already initialized it) and then poll `GET /api/agent/feed?agentId=...`.
 

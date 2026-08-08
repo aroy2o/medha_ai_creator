@@ -31,7 +31,7 @@ export async function discoverReddit(): Promise<DiscoveryResult> {
     // this source working and not; it's still a plain, public RSS fetch.
     const res = await fetchWithTimeout(FEED_URL, {
       timeoutMs: 10_000,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; AriaBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; MedhaBot/1.0)" },
     });
     if (!res.ok) {
       throw new Error(`Reddit RSS responded ${res.status}`);

@@ -253,3 +253,57 @@ committed) and connectivity was verified against the live Supabase
 Postgres instance before relying on it. See the "Decisions" section of
 `README.md` for why this changed the plan from "SQLite first, Postgres
 later" to "Postgres from the start."
+
+## Prompt 3 — 2026-08-08 (after all 10 phases were complete, dev server open in the user's browser)
+
+```
+## Error Type
+Console Error
+
+## Error Message
+The result of getSnapshot should be cached to avoid an infinite loop
+
+
+    at CycleCountdown (src/components/CycleCountdown.tsx:48:35)
+    at PersonaPage (src/app/page.tsx:48:11)
+
+## Code Frame
+  46 |  */
+  47 | export function CycleCountdown({ lastCycleAt, intervalHours }: CycleCountdownProps) {
+> 48 |   const now = useSyncExternalStore(subscribeToClock, getClientTime, getServerTime);
+     |                                   ^
+  49 |
+  50 |   if (!lastCycleAt) {
+  51 |     return (
+
+Next.js version: 16.3.0 (Turbopack)
+```
+
+**Effect on the build:** a real bug, caught only because the user had the
+dev server open in an actual browser — every automated check up to that
+point (curl, HTML content, `next build`, vitest, tsc, eslint) had passed,
+since this is a client-side console warning during React's render cycle,
+not something that fails a request. `getClientTime` was calling
+`Date.now()` directly inside `useSyncExternalStore`'s `getSnapshot`,
+which never returns a referentially stable value between calls. Fixed by
+caching the clock in a module-level variable that only advances once per
+interval tick. See the `CycleCountdown.tsx` commit for the full account.
+
+## Prompt 4 — 2026-08-08
+
+```
+can we change the name ARIA to any more intresting indian name like a
+personel name so it can relate to that experties so it will be more
+better ig
+```
+
+**Effect on the build:** asked via AskUserQuestion for a pick among four
+candidate names (Medha, Vidya, Aarav, Advait — all real Indian personal
+names, chosen to tie into the "rigorous, evidence-based systems analyst"
+voice rather than being arbitrary). User picked **Medha** (Sanskrit for
+intellect/wisdom). Renamed everywhere: `lib/persona.ts`
+(`ARIA_PERSONA` → `MEDHA_PERSONA`), every UI string, the editorial
+engine's user-facing rejection-reason text, bot User-Agent strings
+(`AriaBot` → `MedhaBot`), test fixtures, README.md, and SETUP_TODO.md —
+plus the *live* database `Agent` row, renamed in place (same `agentId`,
+same two already-published posts) rather than creating a new agent.
