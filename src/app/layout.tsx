@@ -25,6 +25,7 @@ const NAV_LINKS = [
   { href: "/feed", label: "Feed" },
   { href: "/editorial-log", label: "Editorial Log" },
   { href: "/memory", label: "Memory Map" },
+  { href: "/constitution", label: "Constitution" },
 ];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

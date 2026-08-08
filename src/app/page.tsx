@@ -135,6 +135,12 @@ export default async function PersonaPage() {
         >
           View the memory map
         </Link>
+        <Link
+          href="/constitution"
+          className="text-neutral-700 underline decoration-neutral-300 underline-offset-4 hover:text-neutral-900"
+        >
+          See how my standards have changed
+        </Link>
       </nav>
     </div>
   );
