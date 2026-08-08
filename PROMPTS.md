@@ -602,3 +602,40 @@ route: a single published post that both named its corroborating source
 in the generated text and explicitly said it had been passed over
 before — not three isolated unit-tested mechanisms assumed to compose
 correctly, but observed actually composing correctly.
+
+## Prompt 19 — 2026-08-09
+
+```
+Can we also post the content with just one click ? to different apps like x , linkedin , threads etc as they are mostly text based social media or to share contnents will ti be usefull feature for our app?
+```
+
+**Effect on the build:** exploratory question, answered without
+implementing (per this session's norm) — recommended one-click Share
+buttons using each platform's public web-intent URL (no API key/OAuth
+needed for X or LinkedIn), flagged that Threads has no public compose
+intent so it would need a clipboard-copy fallback, and drew the line
+between this (human clicks a share link) and the "no real social
+platform posting" limitation already on record in `SETUP_TODO.md`
+(Medha posting autonomously via API), which stays correctly out of
+scope.
+
+## Prompt 20 — 2026-08-09
+
+```
+add it
+```
+
+**Effect on the build:** authorization to build the share feature.
+Delivered: `src/lib/shareLinks.ts` (pure, unit-tested URL-building —
+9 new tests covering word-boundary truncation, the no-good-boundary
+fallback, and exactly which params each platform's intent actually
+carries — LinkedIn's share-offsite endpoint ignores text params, a
+real gotcha caught by writing the test before assuming otherwise) and
+`src/components/ShareButtons.tsx`, wired into each `PostCard` in
+`FeedView.tsx` with a `#post-{id}` anchor per post. Verified against
+real production post data pulled from the live database (a 677-char
+post correctly truncated to the X/WhatsApp share text) rather than
+synthetic fixtures alone. Full suite (85 tests), lint, `tsc --noEmit`,
+and `next build` all clean. No headless-browser tool was available in
+this environment to click-test the rendered buttons directly — flagged
+that explicitly rather than claiming a visual test that didn't happen.

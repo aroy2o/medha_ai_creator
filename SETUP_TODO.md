@@ -88,4 +88,7 @@ before anyone looks at feature quality.**
   discovery-source failure, so not something to fix before deploying. Six other sources cover for it.
 - arXiv's feed is legitimately empty on weekends (it doesn't publish new listings Sat/Sun) — observed
   live during testing. Not a bug; the other six sources still run.
-- No image generation, no real social platform posting — explicitly out of scope per the spec.
+- No image generation, no autonomous social platform posting — explicitly out of scope per the
+  spec. (One-click Share buttons on the feed — X/LinkedIn/WhatsApp web intents, Threads via
+  clipboard — were added since these are human-initiated, not Medha posting on her own; see
+  README.md "One-click sharing" and "Decisions".)

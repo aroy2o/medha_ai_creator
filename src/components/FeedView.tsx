@@ -3,6 +3,7 @@
 import { useCallback, useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchStarted, fetchSucceeded, fetchFailed, type FeedPost } from "@/store/slices/feedSlice";
+import { ShareButtons } from "@/components/ShareButtons";
 
 function displayHost(url: string): string {
   try {
@@ -21,7 +22,7 @@ function formatDate(iso: string): string {
 
 function PostCard({ post }: { post: FeedPost }) {
   return (
-    <article className="rounded border border-neutral-200 bg-white p-4 sm:p-5">
+    <article id={`post-${post.id}`} className="rounded border border-neutral-200 bg-white p-4 sm:p-5">
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <time dateTime={post.createdAt} className="text-xs text-neutral-400">
           {formatDate(post.createdAt)}
@@ -54,6 +55,8 @@ function PostCard({ post }: { post: FeedPost }) {
           ))}
         </div>
       )}
+
+      <ShareButtons text={post.text} postPath={`/feed#post-${post.id}`} />
     </article>
   );
 }

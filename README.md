@@ -159,6 +159,18 @@ duplicate prevention. Verified live by manufacturing the scenario end to end (a 
 artificially marked as previously outranked, then re-run through a real cycle) and confirming both
 the detection and the resulting post text and rationale.
 
+### One-click sharing
+
+Each post carries Share buttons for X, LinkedIn, and WhatsApp — all three have public web
+share-intent URLs that need no API keys or OAuth, so this is a human clicking a link, not Medha
+autonomously posting anywhere (that stays explicitly out of scope, see "Known limitations" in
+`SETUP_TODO.md`). Threads has no public compose intent (Meta doesn't expose one), so it falls
+back to "copy post text + link" for the user to paste in manually. Long posts are truncated on a
+word boundary before being embedded in a share URL — `src/lib/shareLinks.ts` is unit-tested for
+the truncation edge cases (short text passthrough, exact-boundary cuts, no-good-boundary
+fallback) and for exactly what each platform's URL actually carries, since LinkedIn's
+share-offsite endpoint dropped support for pre-filled text years ago and only takes a `url`.
+
 ## API contract
 
 ```
@@ -174,7 +186,7 @@ shouldn't get a 404 for either.
 ## Testing
 
 ```bash
-npm test        # vitest — 76 unit tests over the pure editorial/discovery/generation logic
+npm test        # vitest — 85 unit tests over the pure editorial/discovery/generation/share logic
 npm run lint
 npx tsc --noEmit
 ```
@@ -304,3 +316,9 @@ build brief, made autonomously during an unsupervised build session.
   repo access at request time regardless. It's also, unusually for a "feature," entirely true: every
   entry corresponds to a real commit made during this build, not a designed demonstration of
   transparency.
+- **One-click share buttons use platform web-intents, not API posting.** X, LinkedIn, and WhatsApp
+  all expose a public URL that opens pre-filled with text and/or a link, with no API key or OAuth —
+  a real deviation from "no real social platform posting is in scope" would be Medha calling those
+  platforms' APIs autonomously, which this deliberately isn't (a human still clicks). Threads has no
+  such public endpoint (Meta doesn't expose one), so it degrades to a "copy text + link" clipboard
+  action instead of silently omitting Threads or faking a link that wouldn't actually prefill.
