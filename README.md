@@ -131,10 +131,13 @@ deploys, whether it's pooled:
 1. **Vercel**: import the repo, set the environment variables from the table above (copy the real
    values from your local `.env` — it's gitignored and never committed).
 2. **Connection pooling**: this was built and tested against Supabase's **direct** connection
-   (port 5432), which works fine for a long-lived dev process. Vercel serverless functions open many
-   short-lived connections and can exhaust a direct connection's limit — switch `DATABASE_URL` to
-   Supabase's **Transaction pooler** string (port 6543, `?pgbouncer=true`, found under Project
-   Settings → Database → Connection pooling) before relying on this in production.
+   (port 5432), which works fine for a long-lived dev process but **actually failed in production**
+   on Vercel — repeated Server Component render errors, one request after another. Direct
+   connections either aren't reachable at all without IPv6 egress (which Vercel's functions don't
+   reliably have) or exhaust their low connection cap fast under serverless concurrency. Use
+   `DATABASE_URL`'s pooled form instead (port 6543, `?pgbouncer=true`) — see `SETUP_TODO.md` for
+   this project's actual verified pooler host, found by testing Supabase's known region list
+   directly rather than guessing.
 3. **cron-job.org**: point it at `POST https://<your-domain>/api/agent/cycle` with header
    `x-cron-secret: <your CRON_SECRET>`, on whatever interval you configured
    `CYCLE_INTERVAL_HOURS` to (the route's own pacing guard is a backstop, not a substitute for a

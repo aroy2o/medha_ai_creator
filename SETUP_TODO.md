@@ -37,11 +37,19 @@ What's already done, what's still yours to do, in order.
    - Import the repo at vercel.com/new.
    - Set environment variables (copy real values from your local `.env`, which is gitignored and
      was never committed):
-     - `DATABASE_URL` — **before deploying, switch this to Supabase's pooled connection string**
-       (Project Settings → Database → Connection pooling → "Transaction" mode, port 6543,
-       `?pgbouncer=true`). What's in your local `.env` right now is the *direct* connection
-       (port 5432), which is fine for a long-lived local process but not for serverless functions
-       opening many short-lived connections.
+     - `DATABASE_URL` — **use the pooled connection string, not the direct one.** This was actually
+       hit in production (see PROMPTS.md/README's Decisions for the full story: the direct
+       connection, port 5432, works fine for a long-lived local process but fails under Vercel's
+       serverless concurrency — either no IPv6 egress to reach it at all, or its low connection cap
+       gets exhausted). The project's pooler host was found and verified working end-to-end through
+       Prisma:
+       ```
+       postgresql://postgres.rcdzjgkjppgqijfhqlsf:<URL-ENCODED-PASSWORD>@aws-0-ap-northeast-2.pooler.supabase.com:6543/postgres?pgbouncer=true
+       ```
+       Swap in the real password (URL-encoded — same encoding as your local `.env`'s `DATABASE_URL`).
+       If you ever rotate the DB password or the project's pooler assignment changes, the current
+       value is also always visible under Project Settings → Database → Connection pooling →
+       "Transaction" mode in the Supabase dashboard.
      - `GROQ_API_KEY`
      - `MOCK_MODE=false`
      - `CRON_SECRET`
