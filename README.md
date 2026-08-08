@@ -28,22 +28,25 @@ with what each one actually changed in the codebase.
 ```
 src/
   app/
-    page.tsx                 persona page (/)
-    feed/page.tsx             feed page (/feed)
-    editorial-log/page.tsx    rejected-topics page (/editorial-log)
-    memory/page.tsx           memory map page (/memory)
-    api/agent/init/route.ts   POST /api/agent/init
-    api/agent/feed/route.ts   GET  /api/agent/feed
-    api/agent/cycle/route.ts  POST /api/agent/cycle  (CRON_SECRET-protected)
+    page.tsx                  persona page (/)
+    feed/page.tsx              feed page (/feed)
+    editorial-log/page.tsx     rejected-topics page (/editorial-log)
+    memory/page.tsx            memory map page (/memory)
+    constitution/page.tsx      editorial standards changelog (/constitution), statically rendered
+    api/agent/init/route.ts    POST /api/agent/init
+    api/agent/feed/route.ts    GET  /api/agent/feed
+    api/agent/cycle/route.ts   POST /api/agent/cycle  (CRON_SECRET-protected)
   lib/
-    discovery/                one module per source, each independently callable
-    editorial/                keyword extraction, Jaccard similarity, memory index,
-                               scoring rubric, judge orchestrator — all pure & unit-tested
-    generation.ts              Groq call + MOCK_MODE
-    persona.ts                 Medha's voice/standards (seeded into PersonaProfile at init)
-    db.ts                      Prisma client singleton
-  components/                  FeedView, CycleCountdown, MemoryGraphSvg, route loading/error
-  store/                       Redux Toolkit store + feedSlice
+    discovery/                 one module per source, each independently callable
+    editorial/                 keyword extraction, Jaccard similarity, memory index, scoring
+                                rubric, cross-source corroboration, judge orchestrator — all
+                                pure & unit-tested
+    generation.ts               Groq calls (draft + self-critique) + MOCK_MODE
+    persona.ts                  Medha's voice/standards (seeded into PersonaProfile at init)
+    editorialConstitution.ts    real, dated log of editorial-standards changes
+    db.ts                       Prisma client singleton
+  components/                   FeedView, CycleCountdown, MemoryGraphSvg, route loading/error
+  store/                        Redux Toolkit store + feedSlice
 prisma/schema.prisma
 ```
 
@@ -77,14 +80,15 @@ npm run dev
    logged; it never takes the others down with it, and running them concurrently rather than
    sequentially keeps total discovery time roughly constant as sources are added (~3.5s for all
    seven in testing, down from ~10s for the original four run sequentially).
-2. **Judge** (`lib/editorial/judge.ts`) — every candidate is scored against five weighted criteria
-   (relevance to domain 0.30, technical substance vs. hype 0.25, timeliness 0.15, novelty vs.
-   memory 0.20, source credibility 0.10) on a 0–10 scale. Two hard gates override the weighted
-   score entirely: zero domain relevance, or ≥0.15 Jaccard keyword overlap with an already-published
-   post (see [Decisions](#decisions) for how that threshold was actually tuned). A candidate needs
-   a weighted total ≥6.0 **and** to clear both gates to be publishable. A third band — related to a
-   past post without being a near-duplicate (≥0.05 overlap, below the 0.15 reject gate) — isn't a
-   rejection at all; it flags the winner as a genuine continuity opportunity (see step 4).
+2. **Judge** (`lib/editorial/judge.ts`) — every candidate is scored against six weighted criteria
+   (relevance to domain 0.25, technical substance vs. hype 0.20, timeliness 0.15, novelty vs. memory
+   0.15, source credibility 0.10, cross-source corroboration 0.15 — see "Cross-source corroboration"
+   below) on a 0–10 scale. Two hard gates override the weighted score entirely: zero domain
+   relevance, or ≥0.15 Jaccard keyword overlap with an already-published post (see
+   [Decisions](#decisions) for how that threshold was actually tuned). A candidate needs a weighted
+   total ≥6.0 **and** to clear both gates to be publishable. A third band — related to a past post
+   without being a near-duplicate (≥0.05 overlap, below the 0.15 reject gate) — isn't a rejection at
+   all; it flags the winner as a genuine continuity opportunity (see step 4).
 3. **Rank and log** — the highest-scoring candidate that clears the bar is the winner; every other
    candidate considered that cycle (capped at 8, but "at least a few" is typical since dozens are
    usually discovered) is logged to `RejectedTopic` with the real reason: hard-rejected, below the
@@ -106,9 +110,11 @@ npm run dev
    keywords from the *original candidate's title*, not just what Groq chose — see Decisions), and
    stance. The rationale itself is assembled from parts with different provenance, stated as such:
    the model's own "why this, why now" reasoning; a **deterministic** score breakdown
-   (`buildScoreBreakdown`) stating the actual five-criterion numbers, not a paraphrase of them; a
-   continuity note when applicable; and the alternatives-considered summary (also deterministic,
-   from the judge's structured output — see Decisions for why that part was never left to the model).
+   (`buildScoreBreakdown`) stating the actual six-criterion numbers, not a paraphrase of them; a
+   continuity note when applicable; a corroboration note naming the other sources when applicable; a
+   held-over note when applicable (see below); and the alternatives-considered summary (also
+   deterministic, from the judge's structured output — see Decisions for why that part was never
+   left to the model).
 
 A generation failure for an otherwise-winning candidate publishes nothing and logs the failure —
 same treatment as "nothing cleared the bar," not a silent fallback to unlabeled placeholder content.
@@ -127,6 +133,32 @@ groups the *actual* stances taken across the published feed, with counts. This e
 "distinct editorial opinions" is otherwise just a claim in a system prompt — this makes it a
 checkable property of the feed itself.
 
+### Cross-source corroboration
+
+Each candidate is also compared against every *other* candidate discovered the same cycle (not just
+against past posts) via the same keyword/Jaccard machinery memory already uses. When two or more
+*different* sources independently surfaced something about the same underlying story, that's real
+editorial corroboration — "multiple sources are covering this," not just one source's say-so — and
+it becomes the sixth scoring dimension (`lib/editorial/corroboration.ts`). A candidate with zero
+corroboration isn't penalized (being first to cover something is often exactly when it's most
+valuable to), it just doesn't get the bonus. Verified live: the same real cycle correctly
+cross-referenced two independently-sourced items about the same incident, each correctly naming the
+other as its corroborating source — see `PROMPTS.md` for the full account, including the actual
+overlap measurements (0.10 to 0.34 depending on how much real text each source carried) that the
+0.2 threshold was tuned against.
+
+### Held-over topic reconsideration
+
+A topic that clears the editorial bar but loses to a stronger story is logged as `outranked` — until
+now, that was the end of it, gone for good regardless of how good it was. The cycle route now checks
+whether the winning candidate's exact URL was `outranked` (never hard-rejected or below-bar — those
+failed on their own merits, not just bad timing) in a past cycle for this agent, and if so, both the
+post text and rationale say so plainly: "this was passed over before; nothing outranked it this
+time." Real editors hold a good story for a slower day — this is memory used for more than
+duplicate prevention. Verified live by manufacturing the scenario end to end (a real candidate,
+artificially marked as previously outranked, then re-run through a real cycle) and confirming both
+the detection and the resulting post text and rationale.
+
 ## API contract
 
 ```
@@ -142,7 +174,7 @@ shouldn't get a 404 for either.
 ## Testing
 
 ```bash
-npm test        # vitest — 65 unit tests over the pure editorial/discovery/generation logic
+npm test        # vitest — 76 unit tests over the pure editorial/discovery/generation logic
 npm run lint
 npx tsc --noEmit
 ```
@@ -247,3 +279,28 @@ build brief, made autonomously during an unsupervised build session.
   structurally and turned an existing signal into a second feature (continuity) instead of just a
   dedup gate. The empirical placement of that band reuses measurements already taken for the reject
   threshold — see `memory.ts`.
+- **Corroboration's threshold accepts missing real matches over risking false ones.** Measuring
+  realistic candidate pairs surfaced a genuine tradeoff, not a clean gap: a terse, title-only Hacker
+  News link post matched against a fuller arXiv abstract for the *literal same release* measured
+  only 0.125 overlap — uncomfortably close to two candidates that merely share a domain without
+  being the same story (measured 0.10). A threshold between those two values would call
+  corroboration on unrelated-but-same-domain pairs about as often as it would catch a genuinely
+  thin same-story match. Since false corroboration claims are a worse failure mode than missed ones
+  for a persona whose identity is being evidence-based rather than overclaiming, the threshold
+  (0.2) sits above both borderline cases — a real corroborating source with a thin summary sometimes
+  won't be detected; a source with real content will be. See `corroboration.ts` and its test file
+  for the full measurements and a documented "known limitation" test that exists specifically so a
+  future change to the threshold has to consciously decide to accept that tradeoff differently.
+- **Held-over reconsideration only reuses the existing `outranked` category, deliberately.** A topic
+  that was hard-rejected or fell below the publish bar failed on its own merits — the discovered
+  candidate pool changing between cycles doesn't change *that*. Only `outranked` — "good enough to
+  publish, just not the best story that cycle" — is a legitimate reason to reconsider later. Getting
+  this category check wrong (e.g. by matching on any past rejection) would have reconsidered
+  fundamentally rejected topics, which would have undermined editorial standards rather than
+  demonstrated more sophisticated use of them.
+- **The Editorial Constitution page is deliberately a static, hand-maintained list, not something
+  derived from git log or a database at runtime.** Standards changing is genuinely rare, structural
+  data — closer to a changelog than to application state — and a serverless deployment doesn't have
+  repo access at request time regardless. It's also, unusually for a "feature," entirely true: every
+  entry corresponds to a real commit made during this build, not a designed demonstration of
+  transparency.

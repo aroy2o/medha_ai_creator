@@ -538,3 +538,67 @@ near-miss: the verified Supabase pooler connection string got written
 into `SETUP_TODO.md` with the *actual* password instead of a placeholder
 — found and fixed by re-reading the file before staging, confirmed
 nothing had been committed yet.
+
+## Prompt 16 — 2026-08-09
+
+```
+Make the app responsive and better for all screens
+```
+
+**Effect on the build:** reviewed every page/component for mobile
+-breakpoint issues rather than assuming Tailwind's max-w-* constraints
+alone were sufficient (they're upper bounds, not the actual risk).
+Real issues found: the header's 4 (now 5) nav links plus logo had no
+wrap behavior and risked overflowing under ~400px; a feed card's
+timestamp/stance-badge row had no wrap/shrink handling for a long
+stance string. Fixed both, plus reduced padding on mobile throughout.
+Verified via rendered-HTML class inspection (locally and after the
+Vercel auto-deploy) rather than an actual browser/device, and said so
+explicitly rather than claiming full visual verification.
+
+## Prompt 17 — 2026-08-09
+
+```
+can we add more features in this which can be exceptionaly good and
+out of the box? suggest me the features and the plan to do it to make
+this a winning project
+```
+
+**Effect on the build:** another exploratory question, answered without
+implementing (per this session's established norm) — proposed and
+ranked three concrete features against what's actually judged
+(cross-source corroboration, held-over topic reconsideration, an
+Editorial Constitution page) plus explicitly flagged two ideas
+considered and rejected (source-link health checks — high false
+-positive risk given already-observed bot-blocking on this exact
+project's sources; multi-source synthesis posts — bigger structural
+change, deprioritized given deadline risk) rather than silently
+omitting them.
+
+## Prompt 18 — 2026-08-09
+
+```
+build it and write the code totaly optimised
+```
+
+**Effect on the build:** authorization to build all three proposed
+features. Delivered: cross-source corroboration as a sixth scoring
+dimension (weights rebalanced, threshold empirically tuned against
+measured candidate-vs-candidate overlap — see README's Decisions for
+the real tradeoff the measurements exposed, not a clean threshold);
+held-over topic reconsideration (`RejectedTopic.url`, new migration,
+reusing the existing `outranked` category rather than any past
+rejection); and a statically-rendered Editorial Constitution page built
+from this project's own real, dated history. "Optimised" was read as
+both performance (keyword extraction for corroboration happens once per
+candidate per cycle, not once per pairwise comparison — O(n) expensive
+work, O(n^2) only for cheap Set operations; the Constitution page is
+static-rendered at build time, not a per-request DB query for content
+that never changes) and rigor (every new threshold empirically measured
+against realistic fixtures before being chosen, matching the two
+existing thresholds' precedent, not guessed). All three features
+verified together in one real, live cycle through the actual HTTP
+route: a single published post that both named its corroborating source
+in the generated text and explicitly said it had been passed over
+before — not three isolated unit-tested mechanisms assumed to compose
+correctly, but observed actually composing correctly.

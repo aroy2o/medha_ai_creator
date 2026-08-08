@@ -27,19 +27,21 @@ before anyone looks at feature quality.**
 
 - Real Groq API key and Supabase Postgres password were provided mid-build and are already wired
   into the local, gitignored `.env` — nothing placeholder about them.
-- The database schema is migrated on the live Supabase instance (`prisma/migrations/`), including a
-  later migration adding `Post.stance` for the editorial-stance-tracking feature.
+- The database schema is migrated on the live Supabase instance (`prisma/migrations/`), including
+  later migrations adding `Post.stance` (stance tracking) and `RejectedTopic.url` (held-over topic
+  reconsideration).
 - The Medha persona has been **initialized for real** against that live database. If you call
   `/init` again to re-derive the id, use `name: "Medha"` (it was renamed in place from "Aria" mid
   -build — see README.md "Decisions"). The `agentId` isn't recorded anywhere outside the database
   itself; find it via Prisma Studio (`npx prisma studio`) or by calling `/init` again (idempotent
   -safe — you'll get the same id back, not a duplicate).
-- **Four real posts exist** in that database from testing the cycle route end-to-end across two
+- **Six real posts exist** in that database from testing the cycle route end-to-end across three
   sessions (real discovery, real editorial judgment, real Groq generation and self-critique — not
-  synthetic test data). Same decision as before: leave them (they demonstrate the system working,
-  including the newer self-critique/continuity/stance features) or wipe them for a pristine start.
-  To wipe: Prisma Studio, delete rows from `Post` and `RejectedTopic` for that agent (leave `Agent`
-  and `PersonaProfile` alone so `/init` stays idempotent-safe).
+  synthetic test data), including live proof of cross-source corroboration and held-over topic
+  reconsideration both actually firing. Same decision as before: leave them (they demonstrate the
+  system working) or wipe them for a pristine start. To wipe: Prisma Studio, delete rows from `Post`
+  and `RejectedTopic` for that agent (leave `Agent` and `PersonaProfile` alone so `/init` stays
+  idempotent-safe).
 - `CRON_SECRET` was generated locally (`.env`) for testing — reuse it or rotate it, your call, just
   make sure cron-job.org and your Vercel env var match whichever value you land on.
 - `MOCK_MODE=false` locally, since a real Groq key is present — real generation (including the
