@@ -785,3 +785,29 @@ go ahed and build it
 
 105 tests total (up from 86), lint, `tsc --noEmit`, and `next build`
 all clean.
+
+## Prompt 27 — 2026-08-09
+
+```
+can we fix it [the soft-404 trade-off flagged in the previous summary]
+```
+
+**Effect on the build:** the flagged trade-off turned out to be
+fixable, not a hard platform limit — re-reading `proxy.md` (rather than
+relying on the earlier, too-quick dismissal) found that this Next.js
+version's `proxy` (the renamed `middleware`) defaults to the Node.js
+runtime, not Edge-only, so a real Prisma query there is actually
+viable; my first-pass conclusion had been wrong. Delivered
+`src/proxy.ts`: an existence pre-check scoped to `/feed/:id` via
+`matcher` (so it doesn't touch every request site-wide), running before
+React rendering starts. A missing post rewrites to a path with no
+matching page at all, caught by a new root `src/app/not-found.tsx` —
+resolving that requires no database call to await, so Next commits to
+a real `404` immediately instead of streaming a `200` fallback first,
+which is what made the direct `notFound()` call in `page.tsx` soft.
+Verified empirically, not assumed: confirmed locally that the bad-id
+case really does return `HTTP/1.1 404 Not Found` (and is even served
+pre-rendered), that a valid id and unrelated routes are untouched, then
+pushed and re-verified the same in the actual Vercel deployment — local
+`next start` alone can't prove Vercel's platform genuinely runs
+Node.js-runtime proxy against a real Postgres TCP connection.

@@ -197,15 +197,21 @@ twice), unlike Threads, which has no card at all and needs the url in the copied
 can only ever show one fixed title/description for every post, so this is what makes a shared link
 actually preview the post someone shared, not a generic "Feed — Medha" card regardless of which
 post it was. `ShareButtons` and every post's timestamp link here now instead of a same-page anchor.
-Requesting an id that doesn't exist renders a real `not-found.tsx`, though the HTTP status stays
-`200` with a `noindex` meta tag rather than a true `404` — this Next.js version streams a static
-shell (via the root `loading.tsx`, which Suspense-wraps every route) before the database lookup
-resolves, and the status code can't change once streaming starts. A true `404` would need the
-existence check to happen earlier, in `proxy`, which the framework's own docs warn should stay fast
-and avoid full content fetches — not a good fit for a Postgres round-trip on every request for a
-link that only breaks via manual URL tampering, since every link this app itself generates is
-always valid at creation time. `noindex` already keeps a mistyped link out of search results, which
-is the part that actually matters.
+Requesting an id that doesn't exist returns a real `404`, via `src/proxy.ts` — not the soft
+`200 + noindex` this shipped with first. The direct `notFound()` call inside `page.tsx` can only
+ever produce a soft 404: the root `loading.tsx` Suspense-wraps every route, so the response has
+already started streaming as `200` by the time the page's own database query resolves, and the
+status can't change once streaming starts. Fixed by moving the existence check into `proxy`, which
+runs *before* React rendering begins — this version's `proxy` (the renamed, Node.js-runtime-default
+successor to `middleware`) can run a real Prisma query, scoped to just `/feed/:id` via `matcher` so
+it doesn't touch every request site-wide. A missing post gets rewritten to a path with no matching
+page at all (`/feed-post-not-found`, caught by a new root `not-found.tsx`); resolving that requires
+no database call to await, so Next can commit to a real `404` status immediately instead of
+streaming a fallback first. Verified empirically rather than assumed: confirmed locally that the
+rewrite target really does carry `HTTP/1.1 404 Not Found` (and is even served pre-rendered —
+`x-nextjs-prerender: 1`), then confirmed the same in the actual Vercel deployment, since local
+`next start` alone can't prove Vercel's platform genuinely supports Node.js-runtime proxy against a
+real Postgres connection over TCP.
 
 ### RSS feed
 
