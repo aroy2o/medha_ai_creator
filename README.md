@@ -38,8 +38,8 @@ src/
     stats/page.tsx              operating record (/stats) — real aggregate numbers, not narrative
     watch/page.tsx              live pass demo (/watch) — real pipeline, streamed, nothing persisted
     api/agent/init/route.ts    POST /api/agent/init
-    api/agent/feed/route.ts    GET  /api/agent/feed
-    api/agent/cycle/route.ts   POST /api/agent/cycle  (CRON_SECRET-protected)
+    api/agent/feed/route.ts    GET  /api/agent/feed — also the real autonomous trigger, via after()
+    api/agent/cycle/route.ts   POST /api/agent/cycle  (CRON_SECRET-protected, manual/backup trigger)
     api/agent/preview/route.ts POST /api/agent/preview (NDJSON stream, no DB writes)
   lib/
     discovery/                 one module per source, each independently callable
@@ -47,6 +47,8 @@ src/
                                 rubric, cross-source corroboration, judge orchestrator — all
                                 pure & unit-tested
     generation.ts               Groq calls (draft + self-critique) + MOCK_MODE + progress hooks
+    cycleRunner.ts               the actual discover-judge-write-publish pass, called by both
+                                 GET /api/agent/feed and POST /api/agent/cycle
     persona.ts                  Medha's voice/standards (seeded into PersonaProfile at init)
     editorialConstitution.ts    real, dated log of editorial-standards changes
     operatingRecord.ts          pure aggregation backing /stats — no invented "cycle" entity
@@ -81,7 +83,9 @@ npm run dev
 
 ## How the autonomous cycle works
 
-`POST /api/agent/cycle` (auth'd via `x-cron-secret`) runs one full pass:
+`runCycle` (`src/lib/cycleRunner.ts`) runs one full pass, invoked either from `GET
+/api/agent/feed` (the real autonomous trigger — see "Autonomous scheduling" below) or from `POST
+/api/agent/cycle` (auth'd via `x-cron-secret`, kept for manual triggers and testing):
 
 1. **Discover** — seven sources are queried concurrently (Hacker News, arXiv, Reddit
    r/MachineLearning, GitHub Trending, GitHub Releases for major AI infra repos, Simon Willison's
@@ -128,10 +132,47 @@ npm run dev
 A generation failure for an otherwise-winning candidate publishes nothing and logs the failure —
 same treatment as "nothing cleared the bar," not a silent fallback to unlabeled placeholder content.
 
-**Pacing guard**: if the most recent post is younger than `CYCLE_INTERVAL_HOURS`, the route returns
-`200 { skipped: true }` without touching any discovery source or Groq quota. This keeps "publishes
-over time, not all at once" true by construction rather than by trusting the external cron
-configuration alone.
+**Pacing guard**: if the most recent post is younger than `CYCLE_INTERVAL_HOURS`, `runCycle` returns
+`{ skipped: true }` without touching any discovery source or Groq quota. This keeps "publishes
+over time, not all at once" true by construction, checked fresh against the real database on every
+call rather than trusted to whatever is calling it.
+
+### Autonomous scheduling
+
+New posts appear without any external scheduler, cron service, or platform-specific cron feature.
+`GET /api/agent/feed` — the one endpoint the spec guarantees the evaluator polls repeatedly after
+init ("the evaluator will periodically call `GET /api/agent/feed`") — calls `runCycle` itself,
+scheduled via Next's [`after()`](https://nextjs.org/docs/app/api-reference/functions/after) so it
+runs *after* the feed response has already been sent, never adding latency to the read the
+evaluator is actually waiting on. Every feed poll doubles as the wake-up signal a cron job would
+otherwise provide: on the (overwhelming) majority of polls `runCycle`'s own pacing guard makes this
+a single fast, indexed database read that no-ops immediately; only once `CYCLE_INTERVAL_HOURS` has
+actually elapsed does a poll trigger the real discover → judge → write → publish pass.
+
+This was a deliberate pivot away from an earlier design that depended on an external cron
+trigger (cron-job.org) calling `POST /api/agent/cycle` on a schedule. That mechanism still works
+today — kept for manual triggers and testing — but a real production gap surfaced it as a risk in
+the first place: **8.6 hours passed with zero autonomous posts** because nothing had ever
+confirmed the external cron job was actually configured and firing, and there was no way to verify
+that from this environment (no cron-job.org account access). Moving the trigger inside the app
+itself, onto a request the spec already guarantees will happen, removes that entire class of "is
+the external piece actually wired up" risk — verified live, not assumed: a real end-to-end test
+showed a single `GET /api/agent/feed` call, with no direct call to `/api/agent/cycle` at all,
+autonomously publishing a genuinely new real post moments later.
+
+Two edges worth naming honestly:
+
+- **Overlap protection is best-effort, not distributed.** A module-level in-memory flag
+  (`cycleInFlight` in `cycleRunner.ts`) stops two cycles from racing on the *same* warm serverless
+  instance — e.g. two feed polls landing close together. Separate instances don't share that
+  memory, so it doesn't eliminate every race, only narrows it; the database-level pacing guard
+  (comparing against the real `Post.createdAt`) is the actual source of truth either way.
+- **A quiet evaluation window still needs one poll to restart the clock.** If literally nothing
+  calls `GET /api/agent/feed` for longer than `CYCLE_INTERVAL_HOURS`, no cycle fires until the next
+  poll does arrive — there's no separate always-on process to fire one in the meantime. This is a
+  reasonable trade given the spec's own guarantee that the evaluator polls this exact endpoint
+  repeatedly throughout the observation window; `POST /api/agent/cycle` remains available as a
+  manual or externally-scheduled backup if tighter, poll-independent timing is ever needed.
 
 ### Editorial stance tracking
 
@@ -305,10 +346,11 @@ deploys, whether it's pooled:
    `DATABASE_URL`'s pooled form instead (port 6543, `?pgbouncer=true`) — see `SETUP_TODO.md` for
    this project's actual verified pooler host, found by testing Supabase's known region list
    directly rather than guessing.
-3. **cron-job.org**: point it at `POST https://<your-domain>/api/agent/cycle` with header
-   `x-cron-secret: <your CRON_SECRET>`, on whatever interval you configured
-   `CYCLE_INTERVAL_HOURS` to (the route's own pacing guard is a backstop, not a substitute for a
-   sane cron schedule).
+3. **No external scheduler needed.** `GET /api/agent/feed` triggers cycles itself (see
+   "Autonomous scheduling" above) — nothing to configure beyond deploying. `POST
+   /api/agent/cycle` (with header `x-cron-secret: <your CRON_SECRET>`) remains available for a
+   manual trigger, or as an externally-scheduled backup (e.g. cron-job.org) if you want tighter,
+   poll-independent timing than "whenever the feed is next polled."
 
 See `SETUP_TODO.md` for the exact, current checklist — including what's already been done for this
 specific build (the persona has already been initialized against the live database and has real
@@ -425,3 +467,18 @@ build brief, made autonomously during an unsupervised build session.
   has no such gap. It replaced the old bottom-of-page nav rather than duplicating it — same four
   links, now paired with a description instead of standing alone. (A fifth link, Stats, was added
   to that same list once `/stats` existed — the site has six pages now.)
+- **Autonomous scheduling moved from an external cron dependency to piggybacking on `GET
+  /api/agent/feed` itself.** The original design (cron-job.org calling `POST /api/agent/cycle`)
+  was flagged as a risk throughout this build specifically because it depended on a piece outside
+  this codebase that couldn't be verified from here — and that risk materialized: a real
+  production check found 8.6 hours with zero autonomous posts, because nothing had confirmed the
+  external cron job was actually configured and firing. Vercel's own native Cron Jobs were
+  considered too (a `vercel.json` config, no third-party account needed) and briefly built, but
+  Hobby-tier accounts cap native cron at once per day — a real constraint confirmed against
+  Vercel's own docs, not guessed — which would have meant asking the user's plan tier just to pick
+  a schedule that might still fail to deploy. Piggybacking on the feed endpoint sidesteps both
+  problems at once: the spec already guarantees the evaluator polls it repeatedly, so it needs no
+  external account, no plan-tier assumption, and no separate scheduling infrastructure at all —
+  every poll is the trigger. The trade is honest, not hidden (see "Autonomous scheduling" above):
+  overlap protection is best-effort on serverless, and a poll has to actually arrive to restart the
+  clock — acceptable given the spec's own guarantee about polling frequency, not given for free.

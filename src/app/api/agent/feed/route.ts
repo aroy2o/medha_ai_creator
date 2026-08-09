@@ -1,8 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/logger";
+import { runCycle } from "@/lib/cycleRunner";
 
 export const dynamic = "force-dynamic";
+// The after() callback below can run a full cycle (discovery + up to a few Groq calls), so this
+// needs the same headroom as /api/agent/cycle — after() counts against the same invocation.
+export const maxDuration = 60;
 
 /**
  * GET /api/agent/feed?agentId=... — reverse-chronological published
@@ -34,6 +38,22 @@ export async function GET(request: NextRequest) {
         topicTags: true,
         stance: true,
       },
+    });
+
+    // The spec guarantees the evaluator polls this exact endpoint repeatedly after init
+    // ("the evaluator will periodically call GET /api/agent/feed") — piggybacking the
+    // autonomous trigger here means new posts need no external scheduler, cron service, or
+    // platform-specific cron feature: every feed poll doubles as the wake-up signal. Scheduled
+    // via after() so it runs once this response is already sent, never delaying the feed itself;
+    // runCycle's own pacing guard makes this a fast no-op on the vast majority of polls where a
+    // new cycle isn't due yet.
+    after(() => {
+      runCycle(agentId).catch((err) => {
+        logger.error("feed-triggered cycle failed", {
+          agentId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
     });
 
     return NextResponse.json({

@@ -16,11 +16,18 @@ before anyone looks at feature quality.**
       200 with no error markers, `/feed.xml` serves a real RSS feed with the correct content-type,
       and `GET /api/agent/feed?agentId=...` returns real posts in the exact contract shape, reverse
       chronological, including the newer stance/score-breakdown/topicTags additions.
-- [ ] **cron-job.org is actually configured and firing** — this is the one that matters most and
-      isn't something I can verify from here (no Vercel/cron-job.org access). Every post published
-      so far was from *manual* testing, not an autonomous trigger. If this isn't wired up before the
-      evaluator starts polling, "autonomous operation after initialization" — the top-weighted
-      criterion — has nothing to show. See step 3 below for the exact config.
+- [x] **Autonomous publishing no longer depends on an external cron service.** This item used to
+      flag cron-job.org as unverified and unverifiable from here — that risk was real: a
+      2026-08-09 production check found **8.6 hours with zero autonomous posts**, because nothing
+      had ever confirmed an external cron job was actually configured and firing. Fixed by moving
+      the trigger *inside the app*: `GET /api/agent/feed` — the exact endpoint the spec guarantees
+      the evaluator polls repeatedly after init — now runs a real cycle itself (via `after()`) when
+      one is due, no external scheduler needed at all. Verified live, not assumed: a real
+      end-to-end test showed a single feed poll, with no direct call to `/api/agent/cycle`,
+      autonomously publish a genuinely new post moments later. See README.md "Autonomous
+      scheduling" for the full mechanism and its honestly-documented edges (best-effort overlap
+      protection on serverless; a poll has to actually arrive to restart the clock — acceptable
+      given the spec's own polling guarantee).
 - [x] Submission belongs to a registered team / received before deadline — outside what I can verify
       or affect; that's on your hackathon platform account, not this repo.
 
@@ -36,15 +43,16 @@ before anyone looks at feature quality.**
   -build — see README.md "Decisions"). The `agentId` isn't recorded anywhere outside the database
   itself; find it via Prisma Studio (`npx prisma studio`) or by calling `/init` again (idempotent
   -safe — you'll get the same id back, not a duplicate).
-- **Six real posts exist** in that database from testing the cycle route end-to-end across three
+- **Nine real posts exist** in that database from testing the cycle route end-to-end across several
   sessions (real discovery, real editorial judgment, real Groq generation and self-critique — not
-  synthetic test data), including live proof of cross-source corroboration and held-over topic
-  reconsideration both actually firing. Same decision as before: leave them (they demonstrate the
-  system working) or wipe them for a pristine start. To wipe: Prisma Studio, delete rows from `Post`
-  and `RejectedTopic` for that agent (leave `Agent` and `PersonaProfile` alone so `/init` stays
-  idempotent-safe).
-- `CRON_SECRET` was generated locally (`.env`) for testing — reuse it or rotate it, your call, just
-  make sure cron-job.org and your Vercel env var match whichever value you land on.
+  synthetic test data), including live proof of cross-source corroboration, held-over topic
+  reconsideration, and the new feed-triggered autonomous scheduling all actually firing. Same
+  decision as before: leave them (they demonstrate the system working) or wipe them for a pristine
+  start. To wipe: Prisma Studio, delete rows from `Post` and `RejectedTopic` for that agent (leave
+  `Agent` and `PersonaProfile` alone so `/init` stays idempotent-safe).
+- `CRON_SECRET` was generated locally (`.env`) for testing — still used to authenticate the manual
+  `POST /api/agent/cycle` path (see README "Autonomous scheduling"), so keep it set on Vercel even
+  though nothing external needs to know it anymore.
 - `MOCK_MODE=false` locally, since a real Groq key is present — real generation (including the
   two-pass draft-then-critique flow) has been exercised and reviewed, not just the mock path.
 - Repo pushed to `https://github.com/aroy2o/medha_ai_creator`, branch `main`.
@@ -66,17 +74,10 @@ before anyone looks at feature quality.**
 
 3. ~~Custom domain~~ — done: `https://medha-ai.aroy2o.xyz`.
 
-4. **Set up cron-job.org** (the one remaining item, and the highest-priority one — see checklist
-   above):
-   - New cron job → URL: `https://medha-ai.aroy2o.xyz/api/agent/cycle`
-   - Method: `POST`
-   - Custom header: `x-cron-secret: <your CRON_SECRET value>`
-   - Body: none needed (the route defaults to the one existing agent when no `agentId` is given).
-   - Schedule: every `CYCLE_INTERVAL_HOURS` (4h is a reasonable default — gives up to ~12 possible
-     cycles across a 48h window, though not every cycle will necessarily publish, by design).
-   - **After setting it up, wait for one real scheduled firing and check the feed actually grew**
-     without you doing anything — that's the actual proof this criterion is met, not just that the
-     cron job exists.
+4. ~~Set up cron-job.org~~ — no longer required. `GET /api/agent/feed` triggers cycles itself now
+   (see README.md "Autonomous scheduling"); nothing to configure beyond having already deployed.
+   `POST /api/agent/cycle` (header `x-cron-secret: <your CRON_SECRET value>`) still works if you
+   ever want a manual trigger or tighter, poll-independent timing via an external scheduler.
 
 5. **Give the evaluator whatever they need to discover Medha** — typically just
    `https://medha-ai.aroy2o.xyz`. They call `POST /api/agent/init` themselves (idempotent-safe) and
