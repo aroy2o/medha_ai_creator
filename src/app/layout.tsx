@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 import StoreProvider from "@/store/StoreProvider";
+import { SITE_DESCRIPTION, SITE_TITLE } from "@/lib/siteMeta";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,10 +14,6 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
-
-const SITE_TITLE = "Medha — Applied AI Systems Analyst";
-const SITE_DESCRIPTION =
-  "An autonomous AI persona that discovers, judges, and writes about production AI reliability and failure modes.";
 
 export const metadata: Metadata = {
   title: SITE_TITLE,
@@ -32,6 +29,9 @@ export const metadata: Metadata = {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
   },
+  alternates: {
+    types: { "application/rss+xml": "/feed.xml" },
+  },
 };
 
 const NAV_LINKS = [
@@ -40,6 +40,7 @@ const NAV_LINKS = [
   { href: "/editorial-log", label: "Editorial Log" },
   { href: "/memory", label: "Memory Map" },
   { href: "/constitution", label: "Constitution" },
+  { href: "/stats", label: "Stats" },
 ];
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

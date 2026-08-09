@@ -3,63 +3,7 @@
 import { useCallback, useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { fetchStarted, fetchSucceeded, fetchFailed, type FeedPost } from "@/store/slices/feedSlice";
-import { ShareButtons } from "@/components/ShareButtons";
-
-function displayHost(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  });
-}
-
-function PostCard({ post }: { post: FeedPost }) {
-  return (
-    <article id={`post-${post.id}`} className="rounded border border-neutral-200 bg-white p-4 sm:p-5">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <time dateTime={post.createdAt} className="text-xs text-neutral-400">
-          {formatDate(post.createdAt)}
-        </time>
-        {post.stance && (
-          <span className="shrink-0 rounded border border-neutral-200 px-2 py-0.5 text-xs whitespace-nowrap text-neutral-500">
-            {post.stance}
-          </span>
-        )}
-      </div>
-      <p className="mt-3 whitespace-pre-wrap leading-relaxed text-neutral-900">{post.text}</p>
-
-      <div className="mt-4 border-t border-neutral-100 pt-4">
-        <h3 className="text-xs font-medium uppercase tracking-wide text-neutral-400">Rationale</h3>
-        <p className="mt-1.5 text-sm leading-relaxed text-neutral-600">{post.rationale}</p>
-      </div>
-
-      {post.sources.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1">
-          {post.sources.map((url) => (
-            <a
-              key={url}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-neutral-500 underline decoration-neutral-300 underline-offset-2 hover:text-neutral-800"
-            >
-              {displayHost(url)}
-            </a>
-          ))}
-        </div>
-      )}
-
-      <ShareButtons text={post.text} postPath={`/feed#post-${post.id}`} />
-    </article>
-  );
-}
+import { PostCard } from "@/components/PostCard";
 
 function FeedSkeleton() {
   return (

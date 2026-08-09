@@ -32,6 +32,11 @@ const FLOW_LINKS = [
     label: "Constitution",
     description: "How her own editorial standards have changed, with real dated entries.",
   },
+  {
+    href: "/stats",
+    label: "Stats",
+    description: "Real aggregate numbers — publish rate, rejection breakdown, source hit rate.",
+  },
 ];
 
 function FlowLink({ href, label, description }: { href: string; label: string; description: string }) {

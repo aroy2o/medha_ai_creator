@@ -722,3 +722,66 @@ duplicating it. Verified by curling the actual server-rendered HTML,
 not just checking the build succeeded — confirms it works for a
 first-time visitor with JS disabled too, not only after client
 hydration.
+
+## Prompt 25 — 2026-08-09
+
+```
+can you add more features in my app any more suggestions? or any
+improvemnt of current feature?
+can you add more features in my app any more suggestions? or any
+improvemnt of current feature?
+```
+
+**Effect on the build:** exploratory question (sent twice, likely a
+double-send — answered once), proposed three ranked ideas without
+implementing: an RSS feed, per-post permalink pages with dynamic OG
+metadata, and a real "operating record" stats page — plus a reminder
+that cron-job.org verification still matters more than any new
+feature, since it's the one thing that would give "autonomous
+operation" actual evidence.
+
+## Prompt 26 — 2026-08-09
+
+```
+go ahed and build it
+```
+
+**Effect on the build:** authorization to build all three. Delivered:
+
+- **RSS feed** (`/feed.xml`, `src/lib/rss.ts`) — RSS 2.0, one item per
+  post linking to its new permalink page, auto-discoverable via a
+  `<link rel="alternate">` tag added to the root layout's metadata.
+- **Per-post permalinks** (`/feed/[id]`) with real `generateMetadata`
+  per post (title/description built from that specific post's text and
+  rationale, memoized via React's `cache()` so metadata and the page
+  body share one Prisma query) — extracted the post-card markup out of
+  `FeedView.tsx` into a shared `PostCard` component so the feed list
+  and the permalink page render identically instead of drifting.
+  `ShareButtons` and each post's timestamp now link here instead of a
+  same-page anchor. Found and documented a real, non-obvious behavior
+  in this Next.js version while building the `not-found.tsx` case:
+  because the root `loading.tsx` Suspense-wraps every route, the HTTP
+  response streams (and locks in status `200`) before `notFound()`
+  resolves — read the framework's own docs on this exact trade-off
+  (`node_modules/next/dist/docs/.../loading.md`, "Status Codes")
+  rather than guessing, confirmed the true fix (a `proxy`-layer
+  pre-check) wasn't a good trade for a Postgres round-trip on every
+  request against an edge case only reachable via manual URL tampering,
+  and documented the accepted soft-404 behavior (`noindex` meta tag,
+  correct UI, status `200`) in the README instead of silently leaving
+  it unexplained.
+- **Operating record** (`/stats`, `src/lib/operatingRecord.ts`) — real
+  aggregate numbers (posts published, candidates rejected by category,
+  per-source hit rate, a merged chronological timeline) computed
+  directly from the `Post` and `RejectedTopic` tables with no invented
+  "cycle" entity. A cycle's rejection group is matched to its winning
+  post via `rejectedInFavorOfPostId` (an exact id, not a time-window
+  guess); pacing-skipped or zero-candidate cycles write nothing to
+  either table and are explicitly called out on the page as invisible
+  here, rather than letting the numbers imply more activity than the
+  data supports. Cross-validated against the real database before
+  considering this correct: the rejection-category breakdown (37 + 5 +
+  6) summed to exactly the total-rejected tile (48), not approximately.
+
+105 tests total (up from 86), lint, `tsc --noEmit`, and `next build`
+all clean.

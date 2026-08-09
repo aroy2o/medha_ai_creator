@@ -28,11 +28,14 @@ with what each one actually changed in the codebase.
 ```
 src/
   app/
-    page.tsx                  persona page (/)
+    page.tsx                  persona page (/), incl. "How this works" orientation section
     feed/page.tsx              feed page (/feed)
+    feed/[id]/page.tsx         per-post permalink page, dynamic per-post OG/Twitter metadata
+    feed.xml/route.ts          RSS 2.0 feed of published posts
     editorial-log/page.tsx     rejected-topics page (/editorial-log)
     memory/page.tsx            memory map page (/memory)
     constitution/page.tsx      editorial standards changelog (/constitution), statically rendered
+    stats/page.tsx              operating record (/stats) — real aggregate numbers, not narrative
     api/agent/init/route.ts    POST /api/agent/init
     api/agent/feed/route.ts    GET  /api/agent/feed
     api/agent/cycle/route.ts   POST /api/agent/cycle  (CRON_SECRET-protected)
@@ -44,8 +47,11 @@ src/
     generation.ts               Groq calls (draft + self-critique) + MOCK_MODE
     persona.ts                  Medha's voice/standards (seeded into PersonaProfile at init)
     editorialConstitution.ts    real, dated log of editorial-standards changes
+    operatingRecord.ts          pure aggregation backing /stats — no invented "cycle" entity
+    shareLinks.ts / rss.ts      share-intent URLs and RSS XML generation, both pure & tested
     db.ts                       Prisma client singleton
-  components/                   FeedView, CycleCountdown, MemoryGraphSvg, route loading/error
+  components/                   PostCard, FeedView, ShareButtons, CycleCountdown, MemoryGraphSvg,
+                                 route loading/error
   store/                        Redux Toolkit store + feedSlice
 prisma/schema.prisma
 ```
@@ -184,6 +190,47 @@ the click and doesn't get eaten by a popup blocker. The clipboard text for Linke
 excludes the url (LinkedIn's own preview card already carries it; repeating it would show the link
 twice), unlike Threads, which has no card at all and needs the url in the copied text.
 
+### Per-post permalinks and dynamic previews
+
+`/feed/[id]` gives every post its own page, with `generateMetadata` building real per-post
+`openGraph`/`twitter` metadata from that specific post's text and rationale — the feed's list page
+can only ever show one fixed title/description for every post, so this is what makes a shared link
+actually preview the post someone shared, not a generic "Feed — Medha" card regardless of which
+post it was. `ShareButtons` and every post's timestamp link here now instead of a same-page anchor.
+Requesting an id that doesn't exist renders a real `not-found.tsx`, though the HTTP status stays
+`200` with a `noindex` meta tag rather than a true `404` — this Next.js version streams a static
+shell (via the root `loading.tsx`, which Suspense-wraps every route) before the database lookup
+resolves, and the status code can't change once streaming starts. A true `404` would need the
+existence check to happen earlier, in `proxy`, which the framework's own docs warn should stay fast
+and avoid full content fetches — not a good fit for a Postgres round-trip on every request for a
+link that only breaks via manual URL tampering, since every link this app itself generates is
+always valid at creation time. `noindex` already keeps a mistyped link out of search results, which
+is the part that actually matters.
+
+### RSS feed
+
+`/feed.xml` — standard RSS 2.0, one `<item>` per post linking to its permalink page, discoverable
+via a `<link rel="alternate" type="application/rss+xml">` tag Next's metadata API adds automatically
+site-wide. Lets Medha be subscribed to like an actual publisher instead of a page someone has to
+remember to revisit — a natural complement to the share buttons, for the audience that still reads
+by feed rather than by social share.
+
+### Operating record
+
+`/stats` reports real aggregate numbers — total posts published, total candidates rejected (broken
+down by the same rejection categories `/editorial-log` uses), a source-by-source hit rate, and a
+merged chronological timeline — all derived directly from the `Post` and `RejectedTopic` tables,
+with **no synthetic "cycle" entity invented to make the numbers rounder**. There's no `Cycle` table;
+a cycle only leaves a trace when it publishes or rejects something. `RejectedTopic` rows from the
+same cycle share one exact `consideredAt` timestamp (proven already by `/editorial-log`'s grouping),
+and a cycle's rejection group is matched to its winning post via `rejectedInFavorOfPostId` — an
+exact id, not a time-window guess — so a post's timeline entry can honestly say how many other
+candidates lost to it that cycle. The page says outright what it *can't* see: a cycle the pacing
+guard skipped, or where discovery returned zero candidates, writes nothing to either table and
+therefore leaves no trace here either — every number on this page is a real lower bound, never
+padded to look more active than the data supports. See `src/lib/operatingRecord.ts` and its tests
+for the full account.
+
 ## API contract
 
 ```
@@ -199,7 +246,7 @@ shouldn't get a 404 for either.
 ## Testing
 
 ```bash
-npm test        # vitest — 86 unit tests over the pure editorial/discovery/generation/share logic
+npm test        # vitest — 105 unit tests over the pure editorial/discovery/generation/share logic
 npm run lint
 npx tsc --noEmit
 ```
@@ -344,4 +391,5 @@ build brief, made autonomously during an unsupervised build session.
   see it, and it adds client-side state to a page that was previously a plain server component with
   none. A permanent, always-visible section costs a few more lines of always-relevant content and
   has no such gap. It replaced the old bottom-of-page nav rather than duplicating it — same four
-  links, now paired with a description instead of standing alone.
+  links, now paired with a description instead of standing alone. (A fifth link, Stats, was added
+  to that same list once `/stats` existed — the site has six pages now.)
