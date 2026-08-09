@@ -178,6 +178,20 @@ interface Draft {
   stance: string;
 }
 
+interface Critique {
+  approved: boolean;
+  score: number;
+  feedback: string;
+}
+
+/** Optional observers into the real-mode draft/critique loop — used by the live preview route to
+ * show each step as it actually happens, not a simulated progress bar. No-ops in MOCK_MODE, since
+ * there's no multi-step loop to observe there. */
+export interface GenerationProgress {
+  onDraft?: (draft: Draft, attempt: number) => void;
+  onCritique?: (critique: Critique, attempt: number) => void;
+}
+
 async function generateDraft(
   client: Groq,
   input: GenerationInput,
@@ -269,12 +283,6 @@ async function generateDraft(
   };
 }
 
-interface Critique {
-  approved: boolean;
-  score: number;
-  feedback: string;
-}
-
 /**
  * A second, separate Groq call reviewing the draft against the persona's
  * own standards — framed as an independent editor, not the writer
@@ -334,7 +342,7 @@ async function critiqueDraft(client: Groq, persona: PersonaVoice, draftText: str
  * quietly publish template content that looks like a real generated
  * post but isn't labeled as one.
  */
-export async function generatePost(input: GenerationInput): Promise<GeneratedPost> {
+export async function generatePost(input: GenerationInput, progress?: GenerationProgress): Promise<GeneratedPost> {
   if (isMockMode()) {
     logger.info("generation running in MOCK_MODE", {
       reason: process.env.GROQ_API_KEY ? "MOCK_MODE=true" : "no GROQ_API_KEY set",
@@ -345,7 +353,9 @@ export async function generatePost(input: GenerationInput): Promise<GeneratedPos
   const client = new Groq({ apiKey: process.env.GROQ_API_KEY, timeout: REQUEST_TIMEOUT_MS });
 
   let draft = await generateDraft(client, input);
+  progress?.onDraft?.(draft, 1);
   let critique = await critiqueDraft(client, input.persona, draft.text);
+  progress?.onCritique?.(critique, 1);
 
   if (!critique.approved) {
     logger.info("draft failed self-critique, revising once", {
@@ -353,7 +363,9 @@ export async function generatePost(input: GenerationInput): Promise<GeneratedPos
       feedback: critique.feedback,
     });
     draft = await generateDraft(client, input, { previousText: draft.text, feedback: critique.feedback });
+    progress?.onDraft?.(draft, 2);
     critique = await critiqueDraft(client, input.persona, draft.text);
+    progress?.onCritique?.(critique, 2);
     if (!critique.approved) {
       throw new Error(
         `Draft failed self-critique twice (score ${critique.score}/10): ${critique.feedback}`,

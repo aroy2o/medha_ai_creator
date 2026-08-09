@@ -67,6 +67,21 @@ describe("buildOperatingRecord", () => {
     ]);
   });
 
+  it("keeps two published posts as distinct timeline entries even when they share the exact same createdAt", () => {
+    // Real, observed data: several posts from an earlier batch of test publishing share an
+    // identical createdAt down to the millisecond. Caught a real bug where the page's React key
+    // was built from the timestamp alone and collided — this pins the underlying data shape so
+    // the fix (keying by post.id instead) has something concrete to guard against regressing.
+    const sameInstant = new Date("2026-08-08T17:20:18.358Z");
+    const a = post({ id: "post-a", createdAt: sameInstant });
+    const b = post({ id: "post-b", createdAt: sameInstant });
+    const record = buildOperatingRecord([a, b], []);
+
+    expect(record.timeline).toHaveLength(2);
+    const ids = record.timeline.map((e) => (e.kind === "published" ? e.post.id : null));
+    expect(ids.sort()).toEqual(["post-a", "post-b"]);
+  });
+
   it("sorts the timeline newest first across published and no-publish entries", () => {
     const older = post({ id: "older", createdAt: new Date("2026-08-01T00:00:00.000Z") });
     const newer = post({ id: "newer", createdAt: new Date("2026-08-08T00:00:00.000Z") });

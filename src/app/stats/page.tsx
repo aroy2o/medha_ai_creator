@@ -152,8 +152,16 @@ export default async function StatsPage() {
           </p>
         ) : (
           <ul className="space-y-3">
-            {record.timeline.map((entry) => (
-              <TimelineRow key={`${entry.kind}-${entry.at.toISOString()}`} entry={entry} />
+            {record.timeline.map((entry, index) => (
+              // Real published posts can share an identical createdAt down to the millisecond
+              // (seen live: several test posts created in the same batch during earlier
+              // development) — entry.post.id is the only value guaranteed unique for "published"
+              // entries; "no-publish" entries have no natural unique id, so the index is the
+              // tiebreaker there.
+              <TimelineRow
+                key={entry.kind === "published" ? `post-${entry.post.id}` : `reject-${index}-${entry.at.toISOString()}`}
+                entry={entry}
+              />
             ))}
           </ul>
         )}

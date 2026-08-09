@@ -37,6 +37,11 @@ const FLOW_LINKS = [
     label: "Stats",
     description: "Real aggregate numbers — publish rate, rejection breakdown, source hit rate.",
   },
+  {
+    href: "/watch",
+    label: "Watch Live",
+    description: "Trigger a real discover-judge-write pass and watch it happen, step by step.",
+  },
 ];
 
 function FlowLink({ href, label, description }: { href: string; label: string; description: string }) {

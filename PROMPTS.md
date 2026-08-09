@@ -811,3 +811,52 @@ pre-rendered), that a valid id and unrelated routes are untouched, then
 pushed and re-verified the same in the actual Vercel deployment — local
 `next start` alone can't prove Vercel's platform genuinely runs
 Node.js-runtime proxy against a real Postgres TCP connection.
+
+## Prompt 28 — 2026-08-09
+
+```
+Ig this features all the participants have built lets go out of the
+box and add more value in it so make my app unique and winning project
+```
+
+**Effect on the build:** proposed three genuinely differentiated ideas
+rather than more incremental features — a live, interactive "watch her
+work" demo; grounded Q&A over her own corpus; and self-correction
+tracking over time — with an honest ranking (live demo highest impact,
+least likely to exist elsewhere) and asked which to build.
+
+## Prompt 29 — 2026-08-09
+
+```
+go ahead and build it
+```
+
+**Effect on the build:** built the top-ranked recommendation —
+`/watch`, a real (not simulated) live pass demo. `discoverAll` and
+`generatePost` gained optional progress callbacks (`onSourceResult`,
+`onDraft`, `onCritique`) so a new `POST /api/agent/preview` route could
+observe the exact real pipeline — real discovery, real editorial
+scoring, real Groq draft + self-critique — without a second, drifting
+copy of that logic, and without changing the real cycle route's
+existing call sites at all (the new parameters are optional). The
+preview route never writes to the database — verified live, not
+assumed: triggered a real run (97 real candidates discovered, a real
+winner selected, the self-critique genuinely catching a weak first
+draft at 4/10 and forcing a real revision that scored 8/10) and
+confirmed the site's post/rejection counts were byte-for-byte unchanged
+before and after. Streams as newline-delimited JSON over a raw
+`ReadableStream`, not `EventSource` (which can't read a non-200 body,
+needed for a clean cooldown message on a 429 from the new global,
+in-memory 45s cooldown — deliberately not a robust distributed rate
+limiter, just enough to stop back-to-back clicking in one session).
+
+While live-testing, the user reported a real React console error from
+`/stats`: a duplicate key warning. Root cause was a genuine bug —
+several real posts in the database share an identical `createdAt` down
+to the millisecond (from an earlier batch of test publishing), and the
+timeline's React key was built from that timestamp alone. Fixed by
+keying published entries on `post.id` (guaranteed unique) instead, and
+added a regression test in `operatingRecord.test.ts` pinning the exact
+scenario — two posts sharing one instant must still produce two
+distinct timeline entries — so this doesn't regress silently. 106 tests
+total, lint, `tsc --noEmit`, and `next build` all clean.

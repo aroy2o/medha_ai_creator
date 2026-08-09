@@ -34,12 +34,24 @@ const SOURCES = [
  *
  * A source that throws or times out contributes zero candidates and a
  * logged warning — it never takes the whole cycle down with it.
+ *
+ * `onSourceResult`, if given, fires as each source resolves — still fully
+ * concurrent (every source starts immediately regardless), just observed
+ * progressively instead of only once every source has finished. Used by
+ * the live preview route to show sources landing one at a time.
  */
-export async function discoverAll(): Promise<{
+export async function discoverAll(onSourceResult?: (result: DiscoveryResult) => void): Promise<{
   candidates: DiscoveredCandidate[];
   results: DiscoveryResult[];
 }> {
-  const results = await Promise.all(SOURCES.map((source) => source()));
+  const results = await Promise.all(
+    SOURCES.map((source) =>
+      source().then((result) => {
+        onSourceResult?.(result);
+        return result;
+      }),
+    ),
+  );
 
   const candidates = results.flatMap((r) => r.candidates);
   logger.info("discovery cycle complete", {
