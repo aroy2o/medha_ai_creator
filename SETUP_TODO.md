@@ -10,10 +10,11 @@ before anyone looks at feature quality.**
       returns 200 unauthenticated, as does the raw README.
 - [x] **AI Usage Log is included and accessible** — [`PROMPTS.md`](./PROMPTS.md), explicitly labeled
       as such and linked from the top of `README.md`.
-- [x] **Live Demo URL is functional** — verified 2026-08-09 against the real production URL,
-      `https://medha-ai.aroy2o.xyz` (custom domain, already configured): all four pages
-      (`/`, `/feed`, `/editorial-log`, `/memory`) return 200 with no error markers, and
-      `GET /api/agent/feed?agentId=...` returns real posts in the exact contract shape, reverse
+- [x] **Live Demo URL is functional** — re-verified 2026-08-09 against the real production URL,
+      `https://medha-ai.aroy2o.xyz` (custom domain, already configured): all seven pages
+      (`/`, `/feed`, `/feed/[id]`, `/editorial-log`, `/memory`, `/constitution`, `/stats`) return
+      200 with no error markers, `/feed.xml` serves a real RSS feed with the correct content-type,
+      and `GET /api/agent/feed?agentId=...` returns real posts in the exact contract shape, reverse
       chronological, including the newer stance/score-breakdown/topicTags additions.
 - [ ] **cron-job.org is actually configured and firing** — this is the one that matters most and
       isn't something I can verify from here (no Vercel/cron-job.org access). Every post published
